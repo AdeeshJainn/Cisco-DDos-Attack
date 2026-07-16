@@ -1,0 +1,1 @@
+"""Canonical scenario profiles."""

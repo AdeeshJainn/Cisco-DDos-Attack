@@ -1,0 +1,28 @@
+[project]
+name = "argus"
+version = "0.1.0"
+description = "Context-aware autonomous observability engine: surge decomposition, cause classification, code-level RCA and graded remediation"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "pydantic>=2.7",
+    "numpy>=1.26",
+    "pandas>=2.2",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+# ML upgrades slot in behind the same contracts; the base pipeline must run without them.
+ml = [
+    "lightgbm>=4.3",
+    "scikit-learn>=1.4",
+    "xgboost>=2.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["argus"]

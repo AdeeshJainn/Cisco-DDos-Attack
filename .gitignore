@@ -1,0 +1,26 @@
+# environments and caches
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.hypothesis/
+node_modules/
+dist/
+
+# runtime artifacts (audit db, llm cache, exports)
+var/
+
+# secrets — .env.example is the committed reference
+.env*
+!.env.example
+
+# generated scenario bulk — the four canonical profiles stay committed
+scenarios/*.jsonl.gz
+!scenarios/quiet_day.jsonl.gz
+!scenarios/match_night.jsonl.gz
+!scenarios/cascade_night.jsonl.gz
+!scenarios/combo_night.jsonl.gz
+
+# demo-app git history is materialized by make setup
+demo-app/.git/
