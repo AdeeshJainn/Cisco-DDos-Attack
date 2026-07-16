@@ -10,6 +10,7 @@ dependencies = [
     "pydantic>=2.11",
     "numpy>=1.26",
     "pandas>=2.2",
+    "pyarrow>=16.0",
     "pyyaml>=6.0",
 ]
 
