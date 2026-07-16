@@ -12,7 +12,7 @@ setup:
 	cd dashboard && $(NPM) ci
 	$(UV) run --project engine pre-commit install
 	$(UV) run --project engine python scripts/build_demo_app.py
-	@echo "setup note: canonical scenarios land in phase 3"
+	@echo "setup complete: run 'make demo' and open http://127.0.0.1:8100"
 
 # Full local suite: format check, lint, engine tests, dashboard types + tests.
 # pytest exit 5 (no tests collected) is tolerated until the first suite lands.

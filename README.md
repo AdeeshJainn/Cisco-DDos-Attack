@@ -46,17 +46,64 @@ shows every decision — with its reason and evidence — as it happens.
 
 ## Quickstart
 
+Requirements: Python 3.11+, [uv](https://docs.astral.sh/uv/), Node.js 20+,
+npm, and Git.
+
 ```sh
-make setup   # engine venv (uv) + dashboard deps
-make test    # full local suite
+make setup
+make test
+make demo
 ```
 
-Replay, scoring and the single-command demo are landing incrementally; each
-Make target tells you where it stands.
+Open `http://127.0.0.1:8100`. The production dashboard and FastAPI engine are
+served from one process. The screen includes:
+
+- event/base/residual surge decomposition;
+- attack and code-fault verdicts with the exact decision reason;
+- a protected-cohort-aware rate-limit action;
+- causal collapse to one origin service;
+- a real commit, file, line, mechanism, and repair diff.
+
+The scenario engine also accepts arbitrary integer seeds:
+
+```sh
+make seeds N=1 START_SEED=9001 PROFILE=combo_night
+make replay PROFILE=match_night SEED=9001 SPEED=60
+```
+
+Available profiles are `quiet_day`, `match_night`, `cascade_night`, and
+`combo_night`. Generated telemetry and labels are disposable artifacts under
+`scenarios/` or `var/scenarios/`; they are intentionally not committed.
+
+To score a prediction file against generated ground truth:
+
+```sh
+LABELS=scenarios/combo_night-seed-9001.labels.json \
+PREDICTIONS=predictions.json \
+make score
+```
+
+Every suppress, alert, or act decision carries a populated human-readable
+reason and evidence reference. `make test` checks contract validity, label
+isolation, deterministic generation, fresh-seed behavior, one-origin RCA,
+real-history line localization, protected cohorts, rollback restoration, and
+dashboard types/tests.
 
 ## Honesty note
 
-Telemetry is simulated (seeded, deterministic, replayable) — but the codebase
-under diagnosis is real: a five-service demo application with a real git
-history whose fault commits are actually there. When Argus names a commit, you
-can `git show` it.
+Telemetry is simulated: it is seeded, deterministic, replayable, and clearly
+marked as such in the dashboard. The system under diagnosis is a real,
+runnable five-service demo application.
+
+`make setup` materializes a deterministic **inner Git repository** inside
+`demo-app/`. Its fault commits contain the actual bad diffs used by the
+scenario deploy feed, and its later commits contain the repairs. This inner
+history is diagnostic evidence, not the submission repository's development
+history. When Argus reports a hash, judges can verify the claim directly:
+
+```sh
+git -C demo-app show <reported-commit>
+```
+
+The repair proposal is also offline-safe: it is extracted from the real repair
+commit, so the demo does not depend on an external model or network access.
