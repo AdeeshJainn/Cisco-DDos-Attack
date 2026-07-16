@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 import gzip
-import io
-import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import numpy as np
+import orjson
 
 from argus.config import CONFIG, ScenarioConfig
 from argus.contracts import MetricName, ScenarioHeader
@@ -49,8 +48,8 @@ class ScenarioArtifacts:
     header: ScenarioHeader
 
 
-def _json_line(payload: dict[str, Any]) -> str:
-    return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False) + "\n"
+def _json_line(payload: dict[str, Any]) -> bytes:
+    return orjson.dumps(payload, option=orjson.OPT_APPEND_NEWLINE | orjson.OPT_SORT_KEYS)
 
 
 def _write_jsonl_gzip(
@@ -59,6 +58,7 @@ def _write_jsonl_gzip(
     metrics,
     network,
     markers: list[Any],
+    config: ScenarioConfig,
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -67,8 +67,13 @@ def _write_jsonl_gzip(
     marker_index = 0
     with (
         path.open("wb") as raw,
-        gzip.GzipFile(filename="", mode="wb", fileobj=raw, mtime=0) as compressed,
-        io.TextIOWrapper(compressed, encoding="utf-8", newline="\n") as stream,
+        gzip.GzipFile(
+            filename="",
+            mode="wb",
+            fileobj=raw,
+            compresslevel=config.gzip_compress_level,
+            mtime=0,
+        ) as stream,
     ):
         stream.write(_json_line(header.model_dump(mode="json")))
         for index, ts in enumerate(reference.ts):
@@ -167,6 +172,7 @@ def generate(
         operational.metrics,
         attacked.network,
         markers,
+        config,
     )
     scored_timestamps = operational.metrics[header.services[0]].ts
     scored_timestamps = scored_timestamps[scored_timestamps >= header.scored_from_ts]

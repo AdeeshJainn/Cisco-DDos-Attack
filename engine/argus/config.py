@@ -23,6 +23,9 @@ class ScenarioConfig:
     warmup_resolution_s: int = 60
     # Scored telemetry is one-second resolution for latency and MTTR grading.
     resolution_s: int = 1
+    # Generated scenarios are disposable build artifacts; level 3 keeps files
+    # compact while meeting the sub-minute generation budget.
+    gzip_compress_level: int = 3
 
     # Mid-afternoon is the topology's documented base_rps reference point.
     diurnal_peak_hour_utc: float = 15.0
