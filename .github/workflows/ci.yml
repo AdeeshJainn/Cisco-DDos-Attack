@@ -23,6 +23,7 @@ jobs:
         run: uv run --project engine pytest
         env:
           HYPOTHESIS_PROFILE: ci
+          ARGUS_PROPERTY_SEED: ${{ github.run_id }}
       - name: labels isolation lint
         # AST guard: nothing outside the scenario generator may import the
         # ground-truth writer or reference label file paths.

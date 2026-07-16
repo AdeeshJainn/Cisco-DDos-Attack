@@ -1,3 +1,33 @@
 @import "./brand/fonts.css";
 @import "./brand/globals.css";
 @import "./brand/domain.css";
+
+@keyframes topology-flow {
+  to {
+    stroke-dashoffset: -24;
+  }
+}
+
+@keyframes topology-pulse {
+  50% {
+    opacity: 0.25;
+    transform: scale(1.08);
+  }
+}
+
+.topology-trace {
+  animation: topology-flow 1.4s linear infinite;
+}
+
+.topology-pulse {
+  animation: topology-pulse 1.8s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .topology-trace,
+  .topology-pulse {
+    animation: none;
+  }
+}

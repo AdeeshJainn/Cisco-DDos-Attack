@@ -133,4 +133,7 @@ def test_demo_snapshot_contains_attack_action_and_real_code_report():
     assert code["commit"]
     assert code["file"] == "payment_svc/retry.py"
     assert code["line"] == 18
+    assert snapshot["incidents"][1]["rollback"]["verification"]["users_restored"]
+    assert snapshot["audit"][-1]["type"] == "rollback"
+    assert snapshot["audit"][-1]["incident_id"] == "inc-retry-storm"
     assert "```diff" in snapshot["incidents"][1]["report"]

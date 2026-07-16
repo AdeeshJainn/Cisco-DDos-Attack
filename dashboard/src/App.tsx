@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { DecompositionChart } from "./components/hello-chart";
 import { ThemeToggle } from "./components/theme-toggle";
+import { TopologyMap } from "./components/topology-map";
 
 interface Evidence {
   note: string;
@@ -46,6 +47,16 @@ interface IncidentBundle {
     };
     expected_effect: string;
   };
+  rollback?: null | {
+    action_id: string;
+    cause: string;
+    reverted: boolean;
+    verification: {
+      users_restored: boolean;
+      checked_signals: string[];
+      verified_ts: number;
+    };
+  };
   report?: string;
 }
 
@@ -55,20 +66,27 @@ interface DemoSnapshot {
   seed: number;
   timeline: {
     labels: string[];
+    timestamps: number[];
     base: number[];
     event: number[];
     residual: number[];
     mitigated_residual: number[];
     observed: number[];
+    incidents: Array<{ incident_id: string; label: string; index: number }>;
   };
   ratios: Record<string, number[]>;
   topology: {
     services: string[];
-    edges: Array<{ caller: string; callee: string }>;
+    edges: Array<{ caller: string; callee: string; calls_per_request?: number }>;
     origin: string;
     attack_target: string;
   };
   mttr: {
+    onset_ts: number;
+    detected_ts: number;
+    root_caused_ts: number;
+    mitigated_ts: number;
+    verified_ts: number;
     autonomous_s: number;
     manual_baseline_s: number;
   };
@@ -78,6 +96,17 @@ interface DemoSnapshot {
     decision?: string;
     reason?: string;
     rung?: string;
+    trigger?: string;
+    target?: { selector: string; est_traffic_pct: number };
+    blast_radius?: { gates_passed: string[] };
+    autonomous_s?: number;
+    cause?: string;
+    action_id?: string;
+    verification?: {
+      users_restored: boolean;
+      checked_signals: string[];
+      verified_ts: number;
+    };
   }>;
   incidents: IncidentBundle[];
 }
@@ -117,6 +146,14 @@ export default function App() {
   const [speed, setSpeed] = useState<1 | 10 | 60>(60);
   const [cursor, setCursor] = useState(0);
   const [approval, setApproval] = useState("");
+  const [activeTab, setActiveTab] = useState<"incidents" | "actions">(
+    new URLSearchParams(window.location.search).get("tab") === "actions"
+      ? "actions"
+      : "incidents",
+  );
+  const [auditIncident, setAuditIncident] = useState("all");
+  const [selectedService, setSelectedService] = useState("payment-svc");
+  const [secretProfile, setSecretProfile] = useState("combo_night");
   const [secretSeed, setSecretSeed] = useState(9001);
   const [seedStatus, setSeedStatus] = useState("");
   const [seedFindings, setSeedFindings] = useState<AnalyzeFinding[]>([]);
@@ -145,6 +182,37 @@ export default function App() {
     }, 350);
     return () => window.clearInterval(timer);
   }, [playing, snapshot, speed]);
+
+  useEffect(() => {
+    if (!snapshot) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.matches("input, textarea, select, button, a")) return;
+      if (event.key === " ") {
+        event.preventDefault();
+        setPlaying((value) => !value);
+      }
+      if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+        event.preventDefault();
+        setPlaying(false);
+        const markers = snapshot.timeline.incidents.map((incident) => incident.index);
+        const candidate =
+          event.key === "ArrowRight"
+            ? markers.find((index) => index > cursor)
+            : [...markers].reverse().find((index) => index < cursor);
+        if (candidate !== undefined) setCursor(candidate);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [cursor, snapshot]);
+
+  const openIncident = useCallback(() => {
+    setActiveTab("incidents");
+    window.setTimeout(() => {
+      document.getElementById("evidence-tabs")?.scrollIntoView({ behavior: "smooth" });
+    }, 0);
+  }, []);
 
   if (error) {
     return (
@@ -175,17 +243,17 @@ export default function App() {
   );
   const simTime = snapshot.timeline.labels[cursor];
 
-  const approveFix = async () => {
+  const resolveApproval = async (verdict: "approve" | "reject") => {
     setApproval("saving");
     const response = await fetch(
       `/api/approvals/${fault.decision.decision_id}`,
       {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ verdict: "approve", by: "demo-operator" }),
+        body: JSON.stringify({ verdict, by: "demo-operator" }),
       },
     );
-    setApproval(response.ok ? "approved" : "already resolved");
+    setApproval(response.ok ? (verdict === "approve" ? "approved" : "rejected") : "already resolved");
   };
 
   const analyzeSeed = async () => {
@@ -193,7 +261,7 @@ export default function App() {
     setSeedFindings([]);
     try {
       const response = await fetch(
-        `/api/analyze?profile=combo_night&seed=${secretSeed}`,
+        `/api/analyze?profile=${secretProfile}&seed=${secretSeed}`,
       );
       if (!response.ok) throw new Error(`analysis returned ${response.status}`);
       const findings = (await response.json()) as AnalyzeFinding[];
@@ -241,6 +309,10 @@ export default function App() {
                 {snapshot.profile.replaceAll("_", " ")}
               </Chip>
               <Chip tone="border-line text-muted">seed {snapshot.seed}</Chip>
+              <Chip tone="border-success/40 text-success">event context · live</Chip>
+              <Chip tone="border-warning/40 text-warning">
+                {snapshot.incidents.length} incidents active
+              </Chip>
             </div>
             <div className="mb-4 flex flex-wrap items-center gap-2">
               <button
@@ -279,8 +351,40 @@ export default function App() {
                 }}
                 className="ml-1 w-48 accent-[var(--accent)]"
               />
+              <div className="hidden items-center gap-1.5 lg:flex" aria-label="Incident markers">
+                {snapshot.timeline.incidents.map((incident) => (
+                  <button
+                    type="button"
+                    key={incident.incident_id}
+                    title={`Jump to ${incident.label}`}
+                    onClick={() => {
+                      setPlaying(false);
+                      setCursor(incident.index);
+                    }}
+                    className={`h-2.5 w-2.5 rounded-full border ${
+                      cursor >= incident.index
+                        ? "border-warning bg-warning"
+                        : "border-muted bg-transparent"
+                    }`}
+                  />
+                ))}
+              </div>
               <span className="tnum text-xs font-bold text-muted">{simTime}</span>
               <span className="mx-1 hidden h-6 w-px bg-line lg:block" />
+              <label className="flex items-center gap-2 rounded-full border border-line bg-raised px-3 py-1.5 text-xs">
+                <span className="font-bold uppercase tracking-wider text-muted">Profile</span>
+                <select
+                  aria-label="Scenario profile"
+                  value={secretProfile}
+                  onChange={(event) => setSecretProfile(event.target.value)}
+                  className="bg-transparent font-bold text-ink outline-none"
+                >
+                  <option value="quiet_day">quiet day</option>
+                  <option value="match_night">match night</option>
+                  <option value="cascade_night">cascade night</option>
+                  <option value="combo_night">combo night</option>
+                </select>
+              </label>
               <label className="flex items-center gap-2 rounded-full border border-line bg-raised px-3 py-1.5 text-xs">
                 <span className="font-bold uppercase tracking-wider text-muted">Seed</span>
                 <input
@@ -299,6 +403,9 @@ export default function App() {
                 Analyze fresh seed
               </button>
             </div>
+            <p className="mb-4 text-[10px] font-bold uppercase tracking-wider text-muted">
+              Space play/pause · ←/→ jump between incidents
+            </p>
             <h1 className="max-w-4xl text-[clamp(2.5rem,5vw,5.3rem)] leading-[0.9]">
               The attack behind the game.
             </h1>
@@ -332,7 +439,7 @@ export default function App() {
                   Fresh-seed fire drill
                 </p>
                 <h2 className="mt-1">
-                  Seed {secretSeed}: {seedStatus}
+                  {secretProfile.replaceAll("_", " ")} · seed {secretSeed}: {seedStatus}
                 </h2>
               </div>
               <Chip tone="border-accent/40 text-accent">runtime labels isolated</Chip>
@@ -363,7 +470,33 @@ export default function App() {
                 ))}
               </div>
             )}
+            {seedStatus === "all behavior is within context" && (
+              <div className="mt-4 rounded-md border border-success/30 bg-raised p-5">
+                <p className="font-serif text-2xl text-success">
+                  All surges explained — nothing to do.
+                </p>
+                <p className="mt-2 text-sm text-muted">
+                  Context absorbed the volume change; no incident or action was created.
+                </p>
+              </div>
+            )}
           </section>
+        )}
+
+        {!playing && cursor >= snapshot.timeline.labels.length - 1 && (
+          <div className="mt-5 flex items-center justify-between rounded-md border border-success/30 bg-success/5 px-4 py-3 text-sm">
+            <span className="font-bold text-success">Replay complete — mitigation verified.</span>
+            <button
+              type="button"
+              onClick={() => {
+                setCursor(0);
+                setPlaying(true);
+              }}
+              className="text-xs font-bold uppercase tracking-wider text-accent"
+            >
+              Replay again
+            </button>
+          </div>
         )}
 
         <div className="mt-6 grid gap-5 xl:grid-cols-[1.35fr_0.65fr]">
@@ -374,6 +507,9 @@ export default function App() {
                   Surge decomposition
                 </p>
                 <h2 className="mt-1">Expected crowd. Unexpected behavior.</h2>
+                <p className="mt-1 text-xs text-muted">
+                  Filter: <span className="font-bold text-accent">{selectedService}</span>
+                </p>
               </div>
               <div className="flex gap-2">
                 <Chip tone="border-success/40 text-success">event explained</Chip>
@@ -381,7 +517,12 @@ export default function App() {
               </div>
             </div>
             <div className="mt-4">
-              <DecompositionChart timeline={snapshot.timeline} cursor={cursor} />
+              <DecompositionChart
+                timeline={snapshot.timeline}
+                cursor={cursor}
+                service={selectedService}
+                onIncidentOpen={openIncident}
+              />
             </div>
             <div className="mt-3 grid gap-3 border-t border-line pt-4 md:grid-cols-3">
               <div>
@@ -415,6 +556,13 @@ export default function App() {
                   </span>
                 </div>
                 <p className="mt-3 text-sm">{attack.decision.reason}</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {attack.verdict.evidence.slice(0, 3).map((item) => (
+                    <Chip key={item.note} tone="border-line text-muted">
+                      {item.note}
+                    </Chip>
+                  ))}
+                </div>
                 {attack.action && (
                   <div className="mt-4 rounded-sm border border-line bg-page p-3">
                     <div className="flex justify-between text-xs">
@@ -432,6 +580,13 @@ export default function App() {
                       Protected cohorts touched:{" "}
                       {attack.action.blast_radius.protected_cohorts_touched}
                     </p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {attack.action.blast_radius.gates_passed.map((gate) => (
+                        <span key={gate} className="text-[10px] font-bold text-success">
+                          ✓ {gate}
+                        </span>
+                      ))}
+                    </div>
                   </div>
                 )}
               </article>
@@ -450,18 +605,28 @@ export default function App() {
                 <div className="mt-4 border-l-2 border-warning pl-3 text-xs text-muted">
                   Act with a reversible caller throttle + code fix. No automatic patching.
                 </div>
-                <button
-                  type="button"
-                  onClick={approveFix}
-                  disabled={approval === "saving" || approval === "approved"}
-                  className="mt-4 rounded-full border border-warning/50 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-warning disabled:opacity-60"
-                >
-                  {approval === "approved"
-                    ? "Operator approved"
-                    : approval === "saving"
-                      ? "Recording…"
-                      : approval || "Approve interim throttle"}
-                </button>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => resolveApproval("approve")}
+                    disabled={approval !== ""}
+                    className="rounded-full border border-warning/50 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-warning disabled:opacity-60"
+                  >
+                    {approval === "approved"
+                      ? "Operator approved"
+                      : approval === "saving"
+                        ? "Recording…"
+                        : approval || "Approve throttle"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => resolveApproval("reject")}
+                    disabled={approval !== ""}
+                    className="rounded-full border border-line px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-muted disabled:opacity-60"
+                  >
+                    {approval === "rejected" ? "Operator rejected" : "Reject"}
+                  </button>
+                </div>
               </article>
             </div>
           </section>
@@ -615,40 +780,14 @@ export default function App() {
               Service topology
             </p>
             <h2 className="mt-1">One world model. One origin.</h2>
-            <div className="mt-5 space-y-3">
-              {snapshot.topology.services.map((service) => {
-                const isOrigin = service === snapshot.topology.origin;
-                const isTarget = service === snapshot.topology.attack_target;
-                return (
-                  <div
-                    key={service}
-                    className={`flex items-center gap-3 rounded-md border p-3 ${
-                      isOrigin
-                        ? "border-warning/50 bg-warning/5"
-                        : isTarget
-                          ? "border-danger/50 bg-danger/5"
-                          : "border-line bg-sidebar"
-                    }`}
-                  >
-                    <span
-                      className={`grid h-8 w-8 place-items-center rounded-full text-xs font-black ${
-                        isOrigin
-                          ? "bg-warning text-page"
-                          : isTarget
-                            ? "bg-danger text-page"
-                            : "bg-page text-muted"
-                      }`}
-                    >
-                      {service.slice(0, 1).toUpperCase()}
-                    </span>
-                    <span className="text-sm font-bold text-ink">{service}</span>
-                    <span className="ml-auto text-[10px] font-bold uppercase tracking-wider text-muted">
-                      {isOrigin ? "root cause" : isTarget ? "attack target" : "healthy"}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
+            <TopologyMap
+              services={snapshot.topology.services}
+              edges={snapshot.topology.edges}
+              origin={snapshot.topology.origin}
+              attackTarget={snapshot.topology.attack_target}
+              load={snapshot.timeline.observed[cursor] ?? 0}
+              onSelect={setSelectedService}
+            />
           </section>
 
           <section className="rounded-lg border border-line bg-raised p-5 shadow-sm">
@@ -695,6 +834,271 @@ export default function App() {
             </a>
           </section>
         </div>
+
+        <section
+          id="evidence-tabs"
+          className="mt-5 scroll-mt-20 overflow-hidden rounded-lg border border-line bg-raised shadow-sm"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 pt-4">
+            <div className="flex gap-1" role="tablist" aria-label="Incident evidence views">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === "incidents"}
+                onClick={() => setActiveTab("incidents")}
+                className={`border-b-2 px-4 py-3 text-xs font-bold uppercase tracking-wider ${
+                  activeTab === "incidents"
+                    ? "border-accent text-accent"
+                    : "border-transparent text-muted"
+                }`}
+              >
+                E-1 · Incidents & RCA
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === "actions"}
+                onClick={() => setActiveTab("actions")}
+                className={`border-b-2 px-4 py-3 text-xs font-bold uppercase tracking-wider ${
+                  activeTab === "actions"
+                    ? "border-accent text-accent"
+                    : "border-transparent text-muted"
+                }`}
+              >
+                E-2 · Action log & MTTR
+              </button>
+            </div>
+            <div className="flex gap-2">
+              {activeTab === "incidents" && (
+                <a
+                  href={`/api/incidents/${fault.incident.incident_id}/report`}
+                  className="rounded-full border border-line px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-accent"
+                >
+                  Export RCA report
+                </a>
+              )}
+              <a
+                href="/api/audit/export.ndjson"
+                className="rounded-full border border-line px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-accent"
+              >
+                Export NDJSON
+              </a>
+              {activeTab === "actions" && (
+                <select
+                  aria-label="Filter action log by incident"
+                  value={auditIncident}
+                  onChange={(event) => setAuditIncident(event.target.value)}
+                  className="rounded-full border border-line bg-raised px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-ink"
+                >
+                  <option value="all">All incidents</option>
+                  {snapshot.incidents.map((incident) => (
+                    <option
+                      key={incident.incident.incident_id}
+                      value={incident.incident.incident_id}
+                    >
+                      {incident.incident.incident_id}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+          </div>
+          {activeTab === "incidents" ? (
+            <div className="grid lg:grid-cols-[0.32fr_0.68fr]">
+              <div className="border-b border-line p-5 lg:border-r lg:border-b-0">
+                <p className="text-xs font-bold uppercase tracking-wider text-muted">
+                  Incident index
+                </p>
+                <div className="mt-3 space-y-3">
+                  {[attack, fault].map((incident) => {
+                    const verdict = topClass(incident);
+                    return (
+                      <article
+                        key={incident.incident.incident_id}
+                        className={`rounded-md border p-4 ${
+                          incident === fault
+                            ? "border-warning/40 bg-warning/5"
+                            : "border-line bg-sidebar"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <Chip
+                            tone={
+                              verdict.class === "attack"
+                                ? "border-danger/40 text-danger"
+                                : "border-warning/40 text-warning"
+                            }
+                          >
+                            {verdict.class}
+                          </Chip>
+                          <span className="tnum text-xs text-muted">
+                            {Math.round(incident.verdict.confidence * 100)}%
+                          </span>
+                        </div>
+                        <h3 className="mt-3">{incident.rca.origin.service}</h3>
+                        <p className="mt-1 font-mono text-[10px] text-muted">
+                          {incident.incident.incident_id}
+                        </p>
+                        <p className="mt-3 line-clamp-2 text-xs text-muted">
+                          {incident.decision.reason}
+                        </p>
+                      </article>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="p-5">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-muted">
+                      Selected root cause
+                    </p>
+                    <h2 className="mt-1">{fault.rca.origin.service}</h2>
+                    <p className="mt-1 font-mono text-xs text-warning">
+                      {fault.rca.code_fault?.file}:{fault.rca.code_fault?.line} · commit{" "}
+                      {fault.rca.code_fault?.commit.slice(0, 12)}
+                    </p>
+                  </div>
+                  <Chip tone="border-success/40 text-success">
+                    one origin · real history
+                  </Chip>
+                </div>
+                <div className="mt-5 grid gap-5 xl:grid-cols-2">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wider text-muted">
+                      Symptom evidence
+                    </p>
+                    <div className="mt-3 space-y-2">
+                      {fault.incident.symptoms.map((symptom) => (
+                        <div
+                          key={`${symptom.service}-${symptom.kind}-${symptom.signal}`}
+                          className="grid grid-cols-[110px_130px_1fr] gap-3 rounded-md border border-line bg-sidebar p-3 text-xs"
+                        >
+                          <span className="font-bold text-ink">{symptom.service}</span>
+                          <span className="text-warning">{symptom.kind}</span>
+                          <span className="truncate font-mono text-muted">{symptom.signal}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wider text-muted">
+                      Collapse trace
+                    </p>
+                    <ol className="mt-3 space-y-2">
+                      {fault.rca.collapse_trace.slice(0, 5).map((line, index) => (
+                        <li key={line} className="flex gap-3 text-xs text-muted">
+                          <span className="tnum font-bold text-accent">{index + 1}</span>
+                          <span>{line}</span>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                </div>
+                <div className="mt-5 rounded-md border border-line bg-code p-4 font-mono text-[11px] leading-5">
+                  {fault.rca.code_fault?.proposed_fix?.diff
+                    .split("\n")
+                    .slice(0, 16)
+                    .map((line) => (
+                      <div
+                        key={`tab-diff-${line}`}
+                        className={
+                          line.startsWith("+")
+                            ? "text-success"
+                            : line.startsWith("-")
+                              ? "text-danger"
+                              : "text-body"
+                        }
+                      >
+                        {line || " "}
+                      </div>
+                    ))}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="grid lg:grid-cols-[0.25fr_0.75fr]">
+              <div className="border-b border-line p-5 lg:border-r lg:border-b-0">
+                <p className="text-xs font-bold uppercase tracking-wider text-muted">
+                  MTTR proof
+                </p>
+                <div className="rise-in mt-4 rounded-md border border-success/30 bg-success/5 p-4">
+                  <div className="tnum font-serif text-5xl text-success">
+                    {snapshot.mttr.autonomous_s.toFixed(0)}s
+                  </div>
+                  <p className="mt-2 text-sm font-bold text-ink">verified restoration</p>
+                  <p className="mt-1 text-xs text-muted">
+                    {fasterBy}× faster than the documented manual baseline.
+                  </p>
+                </div>
+                <div className="mt-4 space-y-2 text-xs">
+                  {[
+                    ["Detected", snapshot.mttr.detected_ts],
+                    ["Root caused", snapshot.mttr.root_caused_ts],
+                    ["Mitigated", snapshot.mttr.mitigated_ts],
+                    ["Verified", snapshot.mttr.verified_ts],
+                  ].map(([label, ts]) => (
+                      <div key={label} className="flex items-center gap-3">
+                        <span className="grid h-6 w-6 place-items-center rounded-full bg-success/10 font-bold text-success">
+                          ✓
+                        </span>
+                        <span className="text-ink">{label}</span>
+                        <span className="ml-auto tnum text-muted">
+                          +{(ts as number) - snapshot.mttr.onset_ts}s
+                        </span>
+                      </div>
+                    ))}
+                </div>
+              </div>
+              <div className="overflow-x-auto p-5">
+                <div className="min-w-[720px]">
+                  <div className="grid grid-cols-[52px_100px_130px_1fr_120px] gap-3 border-b border-line pb-2 text-[10px] font-bold uppercase tracking-wider text-muted">
+                    <span>Seq</span>
+                    <span>Record</span>
+                    <span>Incident</span>
+                    <span>Reason / guard evidence</span>
+                    <span>Outcome</span>
+                  </div>
+                  {snapshot.audit
+                    .filter(
+                      (row) => auditIncident === "all" || row.incident_id === auditIncident,
+                    )
+                    .map((row, index) => (
+                    <div
+                      key={`timeline-${row.type}-${index}`}
+                      className="grid grid-cols-[52px_100px_130px_1fr_120px] gap-3 border-b border-line py-3 text-xs last:border-0"
+                    >
+                      <span className="tnum text-muted">
+                        {String(index + 1).padStart(2, "0")}
+                      </span>
+                      <span className="font-bold uppercase tracking-wider text-accent">
+                        {row.type}
+                      </span>
+                      <span className="truncate font-mono text-muted">
+                        {row.incident_id}
+                      </span>
+                      <span className="text-ink">
+                        {row.type === "action"
+                          ? `${row.trigger} · target ${row.target?.selector} (${row.target?.est_traffic_pct}%) · ${row.blast_radius?.gates_passed.join(" · ")}`
+                          : row.type === "rollback"
+                            ? `${row.cause} · linked action ${row.action_id} · checked ${row.verification?.checked_signals.join(", ")}`
+                            : row.reason ?? "Lifecycle timestamps recorded"}
+                      </span>
+                      <span className="font-bold text-success">
+                        {row.rung ??
+                          row.decision ??
+                          (row.verification?.users_restored
+                            ? "restoration ✓"
+                            : undefined) ??
+                          (row.autonomous_s ? `verified ${row.autonomous_s}s` : "logged")}
+                      </span>
+                    </div>
+                    ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </section>
       </main>
     </div>
   );

@@ -15,6 +15,7 @@ from argus.contracts import Incident, IncidentStatus, Symptom, SymptomKind
 from argus.policy.decide import decide
 from argus.policy.effects import apply_action_effect
 from argus.policy.ladder import first_action
+from argus.policy.rollback import evaluate_collateral
 from argus.rca.collapse import analyze
 from argus.scenario.base import DEFAULT_TOPOLOGY_PATH
 from argus.scenario.faults import deploy_record, load_fault_catalog
@@ -122,6 +123,16 @@ def build_demo_snapshot() -> dict:
         fault_verdict,
         ts=fault_incident.last_ts + 1.0,
     )
+    assert fault_action is not None
+    fault_rollback = evaluate_collateral(
+        fault_action,
+        protected_before={"p95_ms": 100.0},
+        protected_after={
+            "p95_ms": 100.0 * (1.0 + CONFIG.policy.collateral_tolerance_fraction * 1.2)
+        },
+        ts=fault_action.ts + CONFIG.policy.effect_check_s,
+        verified_ts=fault_action.ts + CONFIG.policy.restoration_check_s,
+    )
 
     points = np.linspace(0.0, 1.0, 36)
     event_curve = np.sin(np.pi * points) ** 2 * (event.multiplier - 1.0)
@@ -161,6 +172,12 @@ def build_demo_snapshot() -> dict:
     }
     with Path(DEFAULT_TOPOLOGY_PATH).open(encoding="utf-8") as handle:
         topology = yaml.safe_load(handle)
+    replay_start = event.ramp_start_ts
+    replay_end = event.end_ts
+
+    def marker_index(ts: float) -> int:
+        progress = (ts - replay_start) / (replay_end - replay_start)
+        return int(round(np.clip(progress, 0.0, 1.0) * (len(points) - 1)))
 
     return {
         "mode": "seeded deterministic simulation",
@@ -168,11 +185,24 @@ def build_demo_snapshot() -> dict:
         "seed": 424242,
         "timeline": {
             "labels": [f"{17 + index / 12:.1f}h" for index in range(len(points))],
+            "timestamps": np.linspace(replay_start, replay_end, len(points)).tolist(),
             "base": base.tolist(),
             "event": event_curve.tolist(),
             "residual": residual.tolist(),
             "mitigated_residual": effect.after.tolist(),
             "observed": observed_after.tolist(),
+            "incidents": [
+                {
+                    "incident_id": fault_incident.incident_id,
+                    "label": "retry cascade",
+                    "index": marker_index(fault_incident.first_ts),
+                },
+                {
+                    "incident_id": attack_incident.incident_id,
+                    "label": "attack",
+                    "index": marker_index(attack_incident.first_ts),
+                },
+            ],
         },
         "ratios": ratios,
         "topology": {
@@ -206,14 +236,33 @@ def build_demo_snapshot() -> dict:
                 "action": (
                     fault_action.model_dump(mode="json") if fault_action is not None else None
                 ),
+                "rollback": (
+                    fault_rollback.model_dump(mode="json") if fault_rollback is not None else None
+                ),
                 "report": report_markdown(fault_incident, fault_verdict, fault_rca),
             },
         ],
         "audit": [
-            attack_decision.model_dump(mode="json"),
-            attack_action.model_dump(mode="json"),
+            {
+                **attack_decision.model_dump(mode="json"),
+                "incident_id": attack_incident.incident_id,
+            },
+            {
+                **attack_action.model_dump(mode="json"),
+                "incident_id": attack_incident.incident_id,
+            },
             mttr.model_dump(mode="json"),
-            fault_decision.model_dump(mode="json"),
-            fault_action.model_dump(mode="json"),
+            {
+                **fault_decision.model_dump(mode="json"),
+                "incident_id": fault_incident.incident_id,
+            },
+            {
+                **fault_action.model_dump(mode="json"),
+                "incident_id": fault_incident.incident_id,
+            },
+            {
+                **fault_rollback.model_dump(mode="json"),
+                "incident_id": fault_incident.incident_id,
+            },
         ],
     }

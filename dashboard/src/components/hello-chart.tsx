@@ -4,19 +4,25 @@ import { useTheme } from "../hooks/use-theme";
 
 interface Timeline {
   labels: string[];
+  timestamps: number[];
   base: number[];
   event: number[];
   residual: number[];
   mitigated_residual: number[];
   observed: number[];
+  incidents: Array<{ incident_id: string; label: string; index: number }>;
 }
 
 export function DecompositionChart({
   timeline,
   cursor,
+  service,
+  onIncidentOpen,
 }: {
   timeline: Timeline;
   cursor: number;
+  service: string;
+  onIncidentOpen: (incidentId: string) => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const theme = useTheme();
@@ -33,6 +39,10 @@ export function DecompositionChart({
       backgroundColor: "transparent",
       grid: { left: 44, right: 16, top: 30, bottom: 34 },
       tooltip: { trigger: "axis" },
+      dataZoom: [
+        { type: "inside", start: 0, end: 100 },
+        { type: "slider", height: 14, bottom: 2, borderColor: "transparent" },
+      ],
       legend: {
         top: 0,
         right: 0,
@@ -105,6 +115,18 @@ export function DecompositionChart({
             width: 2,
           },
           areaStyle: { opacity: 0.12 },
+          markArea: {
+            silent: false,
+            itemStyle: { color: "rgba(235, 165, 52, 0.08)" },
+            data: timeline.incidents.map((incident) => [
+              {
+                name: incident.label,
+                xAxis: Math.max(0, incident.index - 1),
+                incidentId: incident.incident_id,
+              },
+              { xAxis: Math.min(timeline.labels.length - 1, incident.index + 1) },
+            ]),
+          },
         },
         {
           name: "observed",
@@ -120,13 +142,34 @@ export function DecompositionChart({
         },
       ],
     });
+    chart.on("click", (params) => {
+      const incidentId = (
+        params.data as { incidentId?: string } | undefined
+      )?.incidentId;
+      if (incidentId) onIncidentOpen(incidentId);
+    });
+    chart.on("datazoom", () => {
+      const option = chart.getOption();
+      const zoom = (option.dataZoom as Array<{ start?: number; end?: number }> | undefined)?.[0];
+      const start = Math.round(((zoom?.start ?? 0) / 100) * (timeline.timestamps.length - 1));
+      const end = Math.round(((zoom?.end ?? 100) / 100) * (timeline.timestamps.length - 1));
+      void fetch(
+        `/api/decomp?service=${encodeURIComponent(service)}&signal=rps&from_ts=${timeline.timestamps[start]}&to_ts=${timeline.timestamps[end]}&max_points=2000`,
+      );
+    });
     const onResize = () => chart.resize();
     window.addEventListener("resize", onResize);
     return () => {
       window.removeEventListener("resize", onResize);
       chart.dispose();
     };
-  }, [cursor, theme, timeline]);
+  }, [cursor, onIncidentOpen, service, theme, timeline]);
 
-  return <div ref={ref} className="h-72 w-full" aria-label="Surge decomposition chart" />;
+  return (
+    <div
+      ref={ref}
+      className="h-80 w-full"
+      aria-label={`Surge decomposition chart filtered to ${service}`}
+    />
+  );
 }
