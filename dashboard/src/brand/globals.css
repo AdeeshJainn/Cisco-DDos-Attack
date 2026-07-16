@@ -1,0 +1,435 @@
+@import "tailwindcss";
+
+/*
+ * CoExist Alert — editorial identity tokens.
+ * Monochromatic-plus-one: teal carries brand + interaction, ink-grey neutrals
+ * carry text, green/red/amber carry status. All values are WCAG AA-hardened
+ * on both light and dark surfaces.
+ */
+
+:root {
+  color-scheme: light;
+
+  /* Brand + accent (teal = interaction; --brand is the fixed identity swatch) */
+  --brand: #3fada8;
+  --accent: #277a75;
+  --accent-hover: #1f615d;
+  --accent-soft: rgba(39, 122, 117, 0.12);
+  --accent-contrast: #ffffff;
+
+  /* Ink / text */
+  --ink: #333333;
+  --body: #4d4d4d;
+  --muted: #666666;
+  --faint: #6f6f6f;
+
+  /* Surfaces */
+  --page: #ffffff;
+  --raised: #ffffff;
+  --sidebar: #f5f6f6;
+  --code: #f4f6f6;
+  --hover: rgba(51, 51, 51, 0.05);
+
+  /* Lines */
+  --line: rgba(51, 51, 51, 0.10);
+  --line-strong: rgba(39, 122, 117, 0.35);
+
+  /* Status / semantics (green/red/amber = outcome only) */
+  --success: #18794d;
+  --warning: #8a4f14;
+  --danger: #8d2a2a;
+  --info: #3b6fb0;
+
+  /* Shape & elevation */
+  --radius-sm: 10px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --shadow-sm: 0 1px 2px rgba(51, 51, 51, 0.06);
+  --shadow: 0 8px 24px rgba(51, 51, 51, 0.08);
+  --shadow-lg: 0 18px 42px rgba(51, 51, 51, 0.12);
+
+  /* Type */
+  --font-serif: "Newsreader Variable", "Newsreader", Georgia, "Times New Roman", serif;
+  --font-sans: Arial, "Helvetica Neue", "Segoe UI", Geneva, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  /* Domain aliases — status colors by meaning, never restyled per screen.
+     Honesty chips: SIMULATED = muted outline, LIVE = success (real Webex only). */
+  --sim-chip: var(--muted);
+  --live-chip: var(--success);
+  --status-healthy: var(--success);
+  --status-degraded: var(--warning);
+  --status-offline: var(--danger);
+  --status-unconfirmed: var(--warning);
+  --status-confirmed: var(--danger);
+  --status-resolved: var(--success);
+  --status-advisory: var(--info);
+
+  color: var(--ink);
+  background: var(--page);
+  font-family: var(--font-sans);
+}
+
+/* Dark — manual override (data-theme="dark") OR system preference (unless forced light) */
+[data-theme="dark"] {
+  color-scheme: dark;
+  --accent: #7ce4de;
+  --accent-hover: #66dcd5;
+  --accent-soft: rgba(124, 228, 222, 0.14);
+  --accent-contrast: #0c1416;
+  --ink: #f5f8f8;
+  --body: rgba(245, 248, 248, 0.84);
+  --muted: #a7b2b3;
+  --faint: #94a3a4;
+  --page: #10191b;
+  --raised: #152325;
+  --sidebar: #0d1517;
+  --code: #152325;
+  --hover: rgba(255, 255, 255, 0.06);
+  --line: rgba(255, 255, 255, 0.10);
+  --line-strong: rgba(124, 228, 222, 0.35);
+  --success: #46c98b;
+  --warning: #e0a35a;
+  --danger: #e06b6b;
+  --info: #6ea8e0;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 18px 48px rgba(0, 0, 0, 0.55);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --accent: #7ce4de;
+    --accent-hover: #66dcd5;
+    --accent-soft: rgba(124, 228, 222, 0.14);
+    --accent-contrast: #0c1416;
+    --ink: #f5f8f8;
+    --body: rgba(245, 248, 248, 0.84);
+    --muted: #a7b2b3;
+    --faint: #94a3a4;
+    --page: #10191b;
+    --raised: #152325;
+    --sidebar: #0d1517;
+    --code: #152325;
+    --hover: rgba(255, 255, 255, 0.06);
+    --line: rgba(255, 255, 255, 0.10);
+    --line-strong: rgba(124, 228, 222, 0.35);
+    --success: #46c98b;
+    --warning: #e0a35a;
+    --danger: #e06b6b;
+    --info: #6ea8e0;
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+    --shadow-lg: 0 18px 48px rgba(0, 0, 0, 0.55);
+  }
+}
+
+/* Map tokens into Tailwind v4 utilities (bg-page, text-ink, border-line,
+   font-serif, rounded-md, shadow-sm…) — utilities resolve the live CSS vars,
+   so the manual theme switch works at runtime. */
+@theme inline {
+  --color-brand: var(--brand);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-contrast: var(--accent-contrast);
+  --color-ink: var(--ink);
+  --color-body: var(--body);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-page: var(--page);
+  --color-raised: var(--raised);
+  --color-sidebar: var(--sidebar);
+  --color-code: var(--code);
+  --color-hover: var(--hover);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-info: var(--info);
+  --color-sim-chip: var(--sim-chip);
+  --color-live-chip: var(--live-chip);
+  --color-status-healthy: var(--status-healthy);
+  --color-status-degraded: var(--status-degraded);
+  --color-status-offline: var(--status-offline);
+  --color-status-unconfirmed: var(--status-unconfirmed);
+  --color-status-confirmed: var(--status-confirmed);
+  --color-status-resolved: var(--status-resolved);
+  --color-status-advisory: var(--status-advisory);
+  --font-serif: var(--font-serif);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --shadow-sm: var(--shadow-sm);
+  --shadow: var(--shadow);
+  --shadow-lg: var(--shadow-lg);
+}
+
+body {
+  line-height: 1.65;
+  color: var(--body);
+  background: var(--page);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-serif);
+  color: var(--ink);
+  letter-spacing: -0.02em;
+}
+h1 {
+  font-size: clamp(2.8rem, 4vw, 4.6rem);
+  line-height: 0.96;
+  letter-spacing: -0.04em;
+}
+h2 { font-size: 1.7rem; }
+h3 { font-size: 1.1rem; }
+
+.tnum { font-variant-numeric: tabular-nums; }
+
+/* Landing display type — unlayered classes (Tailwind utilities sit in
+   @layer utilities and would lose to the h1/h2 element rules above).
+   Hero + dark-band headings are fixed white: they always sit on the
+   immersive dark surface in both themes. */
+.display-hero {
+  font-size: clamp(3.1rem, 6.5vw, 6.2rem);
+  line-height: 0.9;
+  letter-spacing: -0.045em;
+  color: #f5f8f8;
+}
+.display-quote {
+  font-size: clamp(1.9rem, 3.4vw, 3rem);
+  line-height: 1.1;
+  color: #f5f8f8;
+}
+.display-section {
+  font-size: clamp(1.9rem, 2.6vw, 2.3rem);
+  line-height: 1.15;
+}
+
+:where(a, button, [role="button"], input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Landing immersive hero (graphic-identity §5) — ambient, decorative-only
+   motion. Fully disabled under reduced motion: pulse rings and dashes rest
+   at their invisible/static base state, content stays readable. */
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+.rise-in { animation: rise-in 0.7s ease both; }
+.rise-in-2 { animation: rise-in 0.7s ease 0.12s both; }
+.rise-in-3 { animation: rise-in 0.7s ease 0.24s both; }
+
+@keyframes scene-pulse {
+  0% { transform: scale(0.2); opacity: 0.6; }
+  70%, 100% { transform: scale(1); opacity: 0; }
+}
+.scene-pulse {
+  transform-box: fill-box;
+  transform-origin: center;
+  opacity: 0;
+  animation: scene-pulse 6.5s ease-out infinite;
+}
+
+@keyframes scene-dash {
+  to { stroke-dashoffset: -140; }
+}
+.scene-dash { animation: scene-dash 10s linear infinite; }
+
+@keyframes scene-twinkle {
+  0%, 100% { opacity: 0.12; }
+  50% { opacity: 0.45; }
+}
+.scene-twinkle { animation: scene-twinkle 9s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .rise-in, .rise-in-2, .rise-in-3,
+  .scene-pulse, .scene-dash, .scene-twinkle { animation: none; }
+}
+
+/* Leaflet map — identity-styled chrome. Markers are the one saturated
+   element; status color rides the ring, the glyph stays ink. */
+.leaflet-container {
+  background: var(--sidebar);
+  font-family: var(--font-sans);
+}
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  background: var(--raised);
+  color: var(--body);
+  box-shadow: var(--shadow);
+}
+.leaflet-popup-content-wrapper {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+.leaflet-container .leaflet-control-attribution {
+  background: var(--raised) !important;
+  border: 1px solid var(--line);
+  color: var(--ink) !important;
+}
+.leaflet-container .leaflet-control-attribution a {
+  color: var(--ink) !important;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.leaflet-bar a {
+  background: var(--raised);
+  color: var(--ink);
+  border-bottom-color: var(--line);
+}
+.leaflet-bar a:hover,
+.leaflet-bar a:focus {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+/* Command palette: keep the result surface opaque above Leaflet's composited
+   tile panes. The focused input uses an inset ring so the global focus outline
+   cannot spill over the rounded modal border. */
+.search-palette-overlay {
+  z-index: 2147483000;
+  isolation: isolate;
+}
+.search-palette-panel {
+  isolation: isolate;
+  contain: paint;
+  background: var(--raised);
+  transform: translateZ(0);
+}
+.search-palette-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  background: var(--raised);
+}
+.search-palette-panel > * {
+  position: relative;
+  z-index: 1;
+}
+.search-palette-input-row,
+.search-palette-results,
+.search-palette-group,
+.search-palette-heading,
+.search-palette-option,
+.search-palette-footer {
+  background: var(--raised);
+}
+.search-palette-input:focus-visible {
+  outline: none;
+}
+/* Focus is shown by tinting the input row and its bottom divider teal — a
+   contained indicator that can't be clipped by the panel's rounded
+   overflow-hidden border the way an offset outline ring would be. The tint is
+   layered over an opaque base so the row still paints above map tiles. */
+.search-palette-input-row:focus-within {
+  border-bottom-color: var(--accent);
+  background:
+    linear-gradient(var(--accent-soft), var(--accent-soft)) var(--raised);
+}
+.search-palette-option[aria-selected="true"] {
+  background:
+    linear-gradient(var(--accent-soft), var(--accent-soft)) var(--raised);
+}
+.search-palette-backdrop {
+  animation: search-palette-fade 150ms ease-out;
+}
+@keyframes search-palette-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .search-palette-backdrop {
+    animation: none;
+  }
+}
+
+.coexist-marker {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9999px;
+  background: var(--raised);
+  border: 3px solid var(--marker-status, var(--muted));
+  box-shadow: var(--shadow-sm);
+  color: var(--ink);
+}
+.coexist-marker svg {
+  width: 15px;
+  height: 15px;
+}
+.coexist-marker--healthy { --marker-status: var(--status-healthy); }
+.coexist-marker--degraded { --marker-status: var(--status-degraded); }
+.coexist-marker--offline { --marker-status: var(--status-offline); }
+.coexist-marker--pulse::after {
+  content: "";
+  position: absolute;
+  inset: -9px;
+  border-radius: 9999px;
+  border: 2px solid var(--status-confirmed);
+  animation: coexist-marker-pulse 1.6s ease-out infinite;
+}
+@keyframes coexist-marker-pulse {
+  0% { transform: scale(0.65); opacity: 0.9; }
+  70% { opacity: 0.35; }
+  100% { transform: scale(1.15); opacity: 0; }
+}
+
+.coexist-geofence {
+  stroke: var(--line-strong);
+  fill: var(--accent);
+  fill-opacity: 0.06;
+}
+
+.coexist-popup {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 190px;
+  font-size: 13px;
+}
+.coexist-popup__title {
+  font-family: var(--font-serif);
+  font-size: 16px;
+  color: var(--ink);
+  margin: 0 0 2px;
+}
+.coexist-popup__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0;
+  color: var(--muted);
+}
+.coexist-popup__link {
+  margin-top: 4px;
+  color: var(--accent);
+  font-weight: 600;
+}

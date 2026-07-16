@@ -1,0 +1,28 @@
+/* Domain tokens — aliases onto the base identity tokens only; the base
+   palette in globals.css is never forked. Residual traffic and ratio
+   deformation ride the outcome colors; the explained-by-event area is the
+   one large brand-teal fill. Combination verdicts render two chips side by
+   side — there is no fifth verdict color. */
+:root {
+  --decomp-base: var(--muted);
+  --decomp-event: var(--brand);
+  --decomp-residual: var(--danger);
+  --verdict-surge: var(--success);
+  --verdict-attack: var(--danger);
+  --verdict-fault: var(--warning);
+  --verdict-ops: var(--info);
+  --ratio-inband: var(--success);
+  --ratio-deformed: var(--danger);
+}
+
+@theme inline {
+  --color-decomp-base: var(--decomp-base);
+  --color-decomp-event: var(--decomp-event);
+  --color-decomp-residual: var(--decomp-residual);
+  --color-verdict-surge: var(--verdict-surge);
+  --color-verdict-attack: var(--verdict-attack);
+  --color-verdict-fault: var(--verdict-fault);
+  --color-verdict-ops: var(--verdict-ops);
+  --color-ratio-inband: var(--ratio-inband);
+  --color-ratio-deformed: var(--ratio-deformed);
+}
