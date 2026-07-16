@@ -448,7 +448,7 @@ export default function App() {
                 </div>
                 <p className="mt-3 text-sm">{fault.decision.reason}</p>
                 <div className="mt-4 border-l-2 border-warning pl-3 text-xs text-muted">
-                  Alert + code fix. No automatic patching; interim caller throttle proposed.
+                  Act with a reversible caller throttle + code fix. No automatic patching.
                 </div>
                 <button
                   type="button"

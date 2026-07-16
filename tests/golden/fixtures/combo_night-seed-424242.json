@@ -19,7 +19,7 @@
       "verdict_confidence": 0.8574925250823356
     },
     {
-      "action_rung": null,
+      "action_rung": "throttle",
       "cause_class": "code_fault",
       "code_fault": {
         "commit": "45d03f4c223f73f50eefac8d010b9f533cc4c69c",
@@ -27,8 +27,8 @@
         "line": 18,
         "mechanism": "unbounded retry no backoff"
       },
-      "decision": "alert",
-      "decision_reason": "alert because code_fault is the leading cause at confidence 0.90: a recent deploy precedes the symptom cascade; resource pressure indicates an internal capacity constraint; dependency-edge latency or errors rose above baseline",
+      "decision": "act",
+      "decision_reason": "act because code_fault is the leading cause at confidence 0.90: a recent deploy precedes the symptom cascade; resource pressure indicates an internal capacity constraint; dependency-edge latency or errors rose above baseline",
       "evidence_ref": "inc-fault-01/verdict",
       "incident_id": "inc-fault-01",
       "last_offset_s": 70199.0,

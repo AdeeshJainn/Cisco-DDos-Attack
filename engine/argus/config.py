@@ -255,6 +255,13 @@ class ScoringConfig:
     # sustained-gate window and modest confidence recalibration.
     golden_time_tolerance_s: float = 30.0
     golden_confidence_tolerance: float = 0.10
+    # Release gates mirror the published acceptance rubric.
+    quiet_false_act_max: float = 0.0
+    attack_recall_min: float = 0.90
+    decision_accuracy_min: float = 0.80
+    origin_accuracy_min: float = 0.90
+    file_line_accuracy_min: float = 0.80
+    detect_latency_max_s: float = 60.0
 
 
 @dataclass(frozen=True)

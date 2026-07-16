@@ -79,12 +79,24 @@ Available profiles are `quiet_day`, `match_night`, `cascade_night`, and
 contract-valid incidents, verdicts, reasons, RCA, decisions, and actions. The
 runtime does not import or read ground-truth labels.
 
-To score a prediction file against generated ground truth:
+To run the full pipeline against fresh held-out seeds and enforce the release
+gates:
+
+```sh
+STRICT=1 SEEDS=3 START_SEED=9200 \
+OUTPUT=docs/reports/scoring-proof.md \
+make score
+```
+
+The report includes decision and reason accuracy, attack recall, origin
+accuracy, code file/line accuracy, quiet-day false acts, detection latency, and
+autonomous resolution time. To score an external predictions JSON file against
+one generated labels file:
 
 ```sh
 LABELS=scenarios/combo_night-seed-9001.labels.json \
 PREDICTIONS=predictions.json \
-make score
+make score-files
 ```
 
 Every suppress, alert, or act decision carries a populated human-readable

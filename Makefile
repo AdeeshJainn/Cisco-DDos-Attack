@@ -5,7 +5,7 @@
 UV ?= uv
 NPM ?= npm
 
-.PHONY: setup test dev demo replay analyze score seeds regen-golden
+.PHONY: setup test dev demo replay analyze score score-files seeds regen-golden
 
 setup:
 	cd engine && $(UV) sync
@@ -39,6 +39,9 @@ analyze:
 	$(UV) run --project engine python -m argus.pipeline --profile $${PROFILE:-combo_night} --seed $${SEED:-424242}
 
 score:
+	$(UV) run --project engine python -m scoring.evaluate --seeds $${SEEDS:-3} --start-seed $${START_SEED:-9100} $${STRICT:+--strict} $${OUTPUT:+--output "$${OUTPUT}"}
+
+score-files:
 	$(UV) run --project engine python -m scoring.harness --labels "$${LABELS:?set LABELS=path}" --predictions "$${PREDICTIONS:?set PREDICTIONS=path}"
 
 seeds:

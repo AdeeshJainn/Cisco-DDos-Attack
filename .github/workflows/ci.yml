@@ -13,6 +13,8 @@ jobs:
       - uses: astral-sh/setup-uv@v5
       - name: sync
         run: uv sync --project engine
+      - name: materialize diagnostic history
+        run: uv run --project engine python scripts/build_demo_app.py
       - name: ruff format
         run: uv run --project engine ruff format --check .
       - name: ruff lint
@@ -25,6 +27,10 @@ jobs:
         # AST guard: nothing outside the scenario generator may import the
         # ground-truth writer or reference label file paths.
         run: uv run --project engine python scripts/lint_labels_isolation.py
+      - name: fresh-seed scoring gates
+        run: |
+          START_SEED=$((GITHUB_RUN_ID % 100000 + 1000))
+          uv run --project engine python -m scoring.evaluate --seeds 1 --start-seed "$START_SEED" --strict
 
   dashboard:
     runs-on: ubuntu-latest

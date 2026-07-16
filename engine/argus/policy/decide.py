@@ -32,7 +32,11 @@ def decide(
             else DecisionKind.ALERT
         )
     elif top.verdict_class is VerdictClass.CODE_FAULT:
-        decision = DecisionKind.ALERT
+        decision = (
+            DecisionKind.ACT
+            if verdict.confidence >= config.code_fault_alert_threshold
+            else DecisionKind.ALERT
+        )
     else:
         decision = (
             DecisionKind.ACT

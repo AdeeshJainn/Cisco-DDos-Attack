@@ -69,15 +69,21 @@ class PipelineFinding:
         }
 
 
-def _first_sustained(mask: np.ndarray, sustain_samples: int) -> tuple[int, int] | None:
+def _sustained_runs(mask: np.ndarray, sustain_samples: int) -> list[tuple[int, int]]:
     padded = np.concatenate(([False], mask, [False]))
     changes = np.diff(padded.astype(np.int8))
     starts = np.flatnonzero(changes == 1)
     ends = np.flatnonzero(changes == -1)
-    for start, end in zip(starts, ends, strict=True):
-        if end - start >= sustain_samples:
-            return int(start), int(end - 1)
-    return None
+    return [
+        (int(start), int(end - 1))
+        for start, end in zip(starts, ends, strict=True)
+        if end - start >= sustain_samples
+    ]
+
+
+def _first_sustained(mask: np.ndarray, sustain_samples: int) -> tuple[int, int] | None:
+    runs = _sustained_runs(mask, sustain_samples)
+    return runs[0] if runs else None
 
 
 def _robust_scores(
@@ -188,6 +194,7 @@ def _metric_window(
     series,
     *,
     scored_from_ts: float,
+    anchor_ts: float,
     config: DetectionConfig,
 ) -> tuple[float, float, str, float] | None:
     warmup = series.ts < scored_from_ts
@@ -210,22 +217,29 @@ def _metric_window(
             0.0,
             1.0,
         )
-        run = _first_sustained(
+        for start, end in _sustained_runs(
             scores >= config.symptom_enter_score,
             max(1, round(config.symptom_sustain_s)),
-        )
-        if run is None:
-            continue
-        start, end = run
-        candidates.append(
-            (
-                float(scored_ts[start]),
-                float(scored_ts[end]),
-                signal,
-                float(np.max(scores[start : end + 1])),
+        ):
+            candidates.append(
+                (
+                    float(scored_ts[start]),
+                    float(scored_ts[end]),
+                    signal,
+                    float(np.max(scores[start : end + 1])),
+                )
             )
-        )
-    return min(candidates, key=lambda item: (item[0], -item[3]), default=None)
+    return min(
+        candidates,
+        key=lambda item: (
+            0.0
+            if item[0] <= anchor_ts <= item[1]
+            else min(abs(anchor_ts - item[0]), abs(anchor_ts - item[1])),
+            -item[3],
+            item[0],
+        ),
+        default=None,
+    )
 
 
 def _fault_findings(
@@ -246,6 +260,7 @@ def _fault_findings(
         metric_window = _metric_window(
             metrics[log.service],
             scored_from_ts=scored_from_ts,
+            anchor_ts=log.ts,
             config=CONFIG.detection,
         )
         incident_start = metric_window[0] if metric_window else log.ts
@@ -353,8 +368,12 @@ def analyze_profile(
     for incident in incidents:
         verdict = classify(incident)
         rca = analyze(incident, verdict, deploys)
-        decision = decide(verdict, ts=incident.last_ts)
-        action = first_action(decision, verdict, ts=incident.last_ts + 1.0)
+        decision_ts = min(
+            incident.last_ts,
+            incident.first_ts + CONFIG.detection.symptom_sustain_s,
+        )
+        decision = decide(verdict, ts=decision_ts)
+        action = first_action(decision, verdict, ts=decision_ts + 1.0)
         findings.append(
             PipelineFinding(
                 incident=incident,

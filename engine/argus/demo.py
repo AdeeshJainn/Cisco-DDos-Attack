@@ -117,6 +117,11 @@ def build_demo_snapshot() -> dict:
     fault_verdict = classify(fault_incident)
     fault_rca = analyze(fault_incident, fault_verdict, [deploy])
     fault_decision = decide(fault_verdict, ts=fault_incident.last_ts)
+    fault_action = first_action(
+        fault_decision,
+        fault_verdict,
+        ts=fault_incident.last_ts + 1.0,
+    )
 
     points = np.linspace(0.0, 1.0, 36)
     event_curve = np.sin(np.pi * points) ** 2 * (event.multiplier - 1.0)
@@ -198,7 +203,9 @@ def build_demo_snapshot() -> dict:
                 "verdict": fault_verdict.model_dump(mode="json"),
                 "rca": fault_rca.model_dump(mode="json"),
                 "decision": fault_decision.model_dump(mode="json"),
-                "action": None,
+                "action": (
+                    fault_action.model_dump(mode="json") if fault_action is not None else None
+                ),
                 "report": report_markdown(fault_incident, fault_verdict, fault_rca),
             },
         ],
@@ -207,5 +214,6 @@ def build_demo_snapshot() -> dict:
             attack_action.model_dump(mode="json"),
             mttr.model_dump(mode="json"),
             fault_decision.model_dump(mode="json"),
+            fault_action.model_dump(mode="json"),
         ],
     }

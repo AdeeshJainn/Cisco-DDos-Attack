@@ -128,6 +128,8 @@ def test_demo_snapshot_contains_attack_action_and_real_code_report():
     assert snapshot["ratios"]
     assert snapshot["topology"]["origin"] == "payment-svc"
     code = snapshot["incidents"][1]["rca"]["code_fault"]
+    assert snapshot["incidents"][1]["decision"]["decision"] == "act"
+    assert snapshot["incidents"][1]["action"]["rung"] == "throttle"
     assert code["commit"]
     assert code["file"] == "payment_svc/retry.py"
     assert code["line"] == 18

@@ -34,6 +34,12 @@ def first_action(
         selector = "behaviorally-anomalous-clients"
         max_pct = config.rate_limit_max_pct
         expected = "reduce unexplained traffic while preserving event users"
+    elif top is VerdictClass.CODE_FAULT:
+        rung = ActionRung.THROTTLE
+        target_kind = TargetKind.SERVICE
+        selector = verdict.evidence[0].feature.split(".", maxsplit=1)[0]
+        max_pct = config.throttle_max_pct
+        expected = "cap deploy-correlated amplification while the code repair is reviewed"
     else:
         rung = ActionRung.SCALE_OUT
         target_kind = TargetKind.SERVICE
