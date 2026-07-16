@@ -202,6 +202,26 @@ class RcaConfig:
 class PolicyConfig:
     """Decision matrix, action ladder, blast-radius guards, rollback windows."""
 
+    # Confidence gates implement the documented class-by-class matrix.
+    expected_surge_threshold: float = 0.75
+    attack_act_threshold: float = 0.60
+    code_fault_alert_threshold: float = 0.60
+    operational_act_threshold: float = 0.70
+    # The first autonomous rung is deliberately narrow and reversible.
+    rate_limit_max_pct: float = 15.0
+    throttle_max_pct: float = 30.0
+    isolate_max_pct: float = 50.0
+    # Protected user cohorts are never valid action selectors.
+    protected_cohorts: tuple[str, ...] = (
+        "authenticated-fans",
+        "payment-in-flight",
+    )
+    # One-minute effect check and five-minute restoration window.
+    effect_check_s: float = 60.0
+    restoration_check_s: float = 300.0
+    # A ten-percent protected-user regression triggers auto rollback.
+    collateral_tolerance_fraction: float = 0.10
+
 
 @dataclass(frozen=True)
 class ReplayConfig:

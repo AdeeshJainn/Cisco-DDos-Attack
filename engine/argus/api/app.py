@@ -8,13 +8,18 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi.responses import PlainTextResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, model_validator
 
 from argus import CONTRACT_VERSION
 from argus.api.replay import ReplayController
 from argus.contracts import MetricName
+from argus.demo import build_demo_snapshot
 from argus.detection.residual import DecompStore
 from argus.scenario.profiles import PROFILE_BUILDERS
+
+REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
 class ReplayLoadRequest(BaseModel):
@@ -147,6 +152,28 @@ def create_app(
             )
         ]
 
+    @app.get("/api/demo")
+    async def demo():
+        return build_demo_snapshot()
+
+    @app.get("/api/incidents")
+    async def incidents():
+        return [item["incident"] for item in build_demo_snapshot()["incidents"]]
+
+    @app.get("/api/incidents/{incident_id}")
+    async def incident_detail(incident_id: str):
+        for item in build_demo_snapshot()["incidents"]:
+            if item["incident"]["incident_id"] == incident_id:
+                return item
+        raise HTTPException(status_code=404, detail=f"unknown incident: {incident_id}")
+
+    @app.get("/api/incidents/{incident_id}/report", response_class=PlainTextResponse)
+    async def incident_report(incident_id: str):
+        for item in build_demo_snapshot()["incidents"]:
+            if item["incident"]["incident_id"] == incident_id and "report" in item:
+                return item["report"]
+        raise HTTPException(status_code=404, detail=f"no report for incident: {incident_id}")
+
     @app.websocket("/ws/stream")
     async def stream(websocket: WebSocket, since_seq: int | None = Query(default=None)):
         await websocket.accept()
@@ -161,6 +188,10 @@ def create_app(
             pass
         finally:
             await replay.hub.unregister(registration.queue)
+
+    dashboard_dist = REPO_ROOT / "dashboard" / "dist"
+    if dashboard_dist.is_dir():
+        app.mount("/", StaticFiles(directory=dashboard_dist, html=True), name="dashboard")
 
     return app
 
