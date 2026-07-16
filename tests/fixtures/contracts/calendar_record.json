@@ -1,0 +1,13 @@
+{
+  "kind": "calendar",
+  "ts": 1789452000,
+  "event_id": "match-final",
+  "title": "Cup Final",
+  "phase": "start",
+  "expected_multiplier": 6.5,
+  "affects": [
+    "edge-gw",
+    "auth-svc",
+    "catalog-svc"
+  ]
+}

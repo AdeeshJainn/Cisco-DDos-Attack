@@ -1,0 +1,7 @@
+{
+  "kind": "metric",
+  "ts": 1789430401,
+  "service": "edge-gw",
+  "name": "rps",
+  "value": 1832.0
+}

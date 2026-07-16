@@ -1,0 +1,40 @@
+{
+  "contract": "v0.2",
+  "seed": 424242,
+  "incidents": [
+    {
+      "gt_id": "gt-1",
+      "class": "attack",
+      "sub_type": "app_layer_flood",
+      "window": [
+        1789455600,
+        1789459200
+      ],
+      "origin_service": "edge-gw",
+      "inside_event": "match-final",
+      "correct_decision": "act",
+      "reason_category": "behavioral_deformation",
+      "code_fault": null
+    },
+    {
+      "gt_id": "gt-2",
+      "class": "code_fault",
+      "sub_type": "retry_storm",
+      "window": [
+        1789460000,
+        1789463000
+      ],
+      "origin_service": "payment-svc",
+      "inside_event": null,
+      "correct_decision": "act",
+      "reason_category": "deploy_correlated_cascade",
+      "code_fault": {
+        "commit": "b7c9d2e4f6a81035c7e9d2b4a6f81023c5e7a9b1",
+        "file": "payment_svc/retry.py",
+        "line": 42,
+        "mechanism": "unbounded_retry_no_backoff"
+      }
+    }
+  ],
+  "timestep_labels_file": "match_night.steplabels.parquet"
+}

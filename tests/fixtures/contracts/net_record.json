@@ -1,0 +1,10 @@
+{
+  "kind": "net",
+  "ts": 1789430401,
+  "service": "edge-gw",
+  "uniq_ip_entropy": 7.9,
+  "syn_ack_ratio": 1.02,
+  "auth_fail_ratio": 0.011,
+  "ja3_novelty": 0.03,
+  "geo_top1_share": 0.22
+}

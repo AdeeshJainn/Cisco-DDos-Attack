@@ -1,0 +1,15 @@
+{
+  "type": "decision",
+  "decision_id": "dec-021",
+  "incident_id": "inc-007",
+  "ts": 1789455630,
+  "decision": "act",
+  "reason": "volume explained by match-final EXCEPT residual with deformed ratios; residual cohort identified",
+  "evidence_ref": "inc-007/verdict",
+  "confidence": 0.87,
+  "human_gate": {
+    "required": false,
+    "approved_by": null,
+    "approved_ts": null
+  }
+}

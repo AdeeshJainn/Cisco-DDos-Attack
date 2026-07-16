@@ -1,0 +1,17 @@
+{
+  "type": "rollback",
+  "rollback_id": "rb-002",
+  "action_id": "act-034",
+  "ts": 1789455811,
+  "trigger": "auto",
+  "cause": "legit err_rate rose 0.4%→1.9% for protected cohort",
+  "reverted": true,
+  "verification": {
+    "users_restored": true,
+    "checked_signals": [
+      "err_rate",
+      "p95_ms"
+    ],
+    "verified_ts": 1789455871
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "type": "decomp",
+  "ts": 1789455610,
+  "service": "edge-gw",
+  "signal": "rps",
+  "observed": 14200.0,
+  "explained_base": 1900.0,
+  "explained_event": 10100.0,
+  "residual": 2200.0,
+  "band": [
+    11400.0,
+    12600.0
+  ],
+  "residual_score": 0.93
+}

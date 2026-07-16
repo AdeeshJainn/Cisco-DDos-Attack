@@ -1,0 +1,28 @@
+{
+  "type": "approval_request",
+  "decision_id": "dec-022",
+  "proposed_action": {
+    "type": "action",
+    "action_id": "act-034",
+    "decision_id": "dec-021",
+    "ts": 1789455631,
+    "rung": "rate_limit",
+    "target": {
+      "kind": "cohort",
+      "selector": "ja3_novel AND geo_top1",
+      "est_traffic_pct": 11.2
+    },
+    "blast_radius": {
+      "protected_cohorts_touched": 0,
+      "max_pct_allowed": 15.0,
+      "gates_passed": [
+        "confidence>=0.6",
+        "protected_untouched",
+        "dwell_observe>=60s"
+      ]
+    },
+    "trigger": "verdict attack p=0.87 + residual_score 0.93",
+    "expected_effect": "residual rps -60% within 120s, event traffic unaffected"
+  },
+  "timeout_s": 120
+}

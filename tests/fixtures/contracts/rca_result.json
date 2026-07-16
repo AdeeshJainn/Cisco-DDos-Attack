@@ -1,0 +1,38 @@
+{
+  "type": "rca",
+  "incident_id": "inc-009",
+  "origin": {
+    "service": "payment-svc",
+    "onset_ts": 1789460010,
+    "alternates": [
+      {
+        "service": "notify-svc",
+        "score": 0.31
+      }
+    ]
+  },
+  "cause_class": "code_fault",
+  "collapse_trace": [
+    "notify-svc p99 rose AFTER payment-svc→notify-svc rps ×38 (amplification at caller)",
+    "deploy b7c9d2e4 on payment-svc 4m before onset touched retry.py",
+    "log template TIMEOUT_DOWNSTREAM count correlates with retry loop period"
+  ],
+  "code_fault": {
+    "commit": "b7c9d2e4f6a81035c7e9d2b4a6f81023c5e7a9b1",
+    "file": "payment_svc/retry.py",
+    "line": 42,
+    "function": "call_notify",
+    "config_value": "max_retries=0 (unbounded)",
+    "mechanism": "timeout triggers immediate re-send with no backoff; each failure multiplies downstream load",
+    "proposed_fix": {
+      "summary": "cap retries + exponential backoff + circuit breaker",
+      "diff": "--- a/payment_svc/retry.py\n+++ b/payment_svc/retry.py\n@@ -40,3 +40,6 @@\n"
+    }
+  },
+  "cure": {
+    "kind": "code_fix",
+    "justification": "infra scaling would feed the storm; origin is deploy-correlated",
+    "interim_infra_action": "throttle payment-svc→notify-svc client to pre-deploy rate"
+  },
+  "confidence": 0.83
+}

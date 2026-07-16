@@ -1,0 +1,11 @@
+{
+  "type": "mttr",
+  "incident_id": "inc-009",
+  "onset_ts": 1789460010,
+  "detected_ts": 1789460022,
+  "root_caused_ts": 1789460041,
+  "mitigated_ts": 1789460060,
+  "verified_ts": 1789460180,
+  "manual_baseline_s": 14400,
+  "autonomous_s": 170
+}

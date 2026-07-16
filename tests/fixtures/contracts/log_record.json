@@ -1,0 +1,9 @@
+{
+  "kind": "log",
+  "ts": 1789430402,
+  "service": "payment-svc",
+  "level": "error",
+  "template_id": "TIMEOUT_DOWNSTREAM",
+  "msg": "timeout calling notify-svc",
+  "count": 17
+}

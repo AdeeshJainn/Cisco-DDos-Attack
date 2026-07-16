@@ -1,0 +1,19 @@
+{
+  "kind": "header",
+  "contract": "v0.2",
+  "seed": 424242,
+  "profile": "match_night",
+  "start_ts": 1789257600,
+  "scored_from_ts": 1789430400,
+  "end_ts": 1789516800,
+  "resolution_s": 1,
+  "warmup_resolution_s": 60,
+  "services": [
+    "edge-gw",
+    "auth-svc",
+    "catalog-svc",
+    "payment-svc",
+    "notify-svc"
+  ],
+  "demo_app_manifest": ".manifest.lock.json"
+}

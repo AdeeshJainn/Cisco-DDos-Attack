@@ -1,0 +1,30 @@
+{
+  "type": "incident",
+  "incident_id": "inc-007",
+  "status": "open",
+  "first_ts": 1789455600,
+  "last_ts": 1789455900,
+  "symptoms": [
+    {
+      "service": "edge-gw",
+      "signal": "rps",
+      "kind": "residual_exceed",
+      "onset_ts": 1789455600,
+      "score": 0.93
+    },
+    {
+      "service": "edge-gw",
+      "signal": "syn_ack_ratio",
+      "kind": "ratio_deform",
+      "onset_ts": 1789455605,
+      "score": 0.88
+    },
+    {
+      "service": "auth-svc",
+      "signal": "auth_fail_ratio",
+      "kind": "ratio_deform",
+      "onset_ts": 1789455620,
+      "score": 0.91
+    }
+  ]
+}

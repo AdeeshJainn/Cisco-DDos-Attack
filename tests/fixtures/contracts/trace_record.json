@@ -1,0 +1,9 @@
+{
+  "kind": "trace",
+  "ts": 1789430402,
+  "caller": "payment-svc",
+  "callee": "notify-svc",
+  "rps": 240.0,
+  "err_rate": 0.31,
+  "p99_ms": 4200
+}
