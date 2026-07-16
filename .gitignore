@@ -22,5 +22,6 @@ scenarios/*.jsonl.gz
 !scenarios/cascade_night.jsonl.gz
 !scenarios/combo_night.jsonl.gz
 
-# demo-app git history is materialized by make setup
+# demo-app git history and lockfile are materialized by make setup
 demo-app/.git/
+demo-app/.manifest.lock.json

@@ -11,7 +11,8 @@ setup:
 	cd engine && $(UV) sync
 	cd dashboard && $(NPM) ci
 	$(UV) run --project engine pre-commit install
-	@echo "setup note: demo-app history build lands in phase 2; canonical scenarios land in phase 3"
+	$(UV) run --project engine python scripts/build_demo_app.py
+	@echo "setup note: canonical scenarios land in phase 3"
 
 # Full local suite: format check, lint, engine tests, dashboard types + tests.
 # pytest exit 5 (no tests collected) is tolerated until the first suite lands.
