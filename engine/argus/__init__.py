@@ -2,6 +2,8 @@
 classifies their causes, localizes faults to code and takes graded,
 reversible remediation actions."""
 
-# Frozen to "1.0" when the inter-module payload contracts freeze; until then
-# additive drafts only.
-CONTRACT_VERSION = "0.2-draft"
+# FROZEN. Any change to the payload contracts requires bumping this version
+# (minor = additive, major = breaking) and updating the pydantic models, the
+# exported JSON schema, the generated dashboard types, the shared fixtures
+# and every producer/consumer in the same commit.
+CONTRACT_VERSION = "1.0"

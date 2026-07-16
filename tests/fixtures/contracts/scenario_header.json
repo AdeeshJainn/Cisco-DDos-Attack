@@ -1,6 +1,6 @@
 {
   "kind": "header",
-  "contract": "v0.2",
+  "contract": "v1.0",
   "seed": 424242,
   "profile": "match_night",
   "start_ts": 1789257600,
