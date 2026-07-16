@@ -1,0 +1,18 @@
+diff --git a/auth_svc/server.py b/auth_svc/server.py
+index 8c0e356..fd43bac 100644
+--- a/auth_svc/server.py
++++ b/auth_svc/server.py
+@@ -19,10 +19,9 @@ LISTEN_PORT = int(os.environ.get("PORT", "8081"))
+ SIGNING_KEY = os.environ.get("AUTH_SIGNING_KEY", "dev-only-signing-key").encode()
+ TOKEN_TTL_S = 3600
+ 
+-# Pool sizing: a credentials lookup holds a connection ~20 ms, so 50
+-# connections ride out login bursts well past the planned peak (see
+-# topology.yaml capacity notes) without queueing.
+-POOL_SIZE = 50
++# Connection census showed most of the pool idle outside evening peak;
++# shrink to cut standing pressure on the user store.
++POOL_SIZE = 5
+ CHECKOUT_TIMEOUT_S = 0.25
+ QUERY_COST_S = 0.02  # measured p50 of the credentials lookup
+ 

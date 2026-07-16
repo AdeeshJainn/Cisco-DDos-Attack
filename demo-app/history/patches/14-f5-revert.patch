@@ -1,0 +1,23 @@
+diff --git a/catalog_svc/server.py b/catalog_svc/server.py
+index a70a392..cff0a56 100644
+--- a/catalog_svc/server.py
++++ b/catalog_svc/server.py
+@@ -78,7 +78,7 @@ class CatalogHandler(BaseHTTPRequestHandler):
+         self._reply(200, {"products": self._load(ids)})
+ 
+     def _load(self, ids: list[str]) -> dict[str, dict]:
+-        """Serve each id from cache; fetch misses from the database."""
++        """Serve each id from cache; fetch all misses in one batch round trip."""
+         found: dict[str, dict] = {}
+         missing: list[str] = []
+         for pid in ids:
+@@ -88,8 +88,7 @@ class CatalogHandler(BaseHTTPRequestHandler):
+             else:
+                 found[pid] = row
+         if missing:
+-            # One code path for every id keeps the cache logic uniform.
+-            rows = {pid: DB.fetch_one(pid) for pid in missing}
++            rows = DB.fetch_many(missing)
+             for pid, row in rows.items():
+                 CACHE.put(pid, row)
+             found.update(rows)

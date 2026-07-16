@@ -1,0 +1,223 @@
+# manifest.yaml — the scripted commit timeline behind demo-app/.git
+#
+# scripts/build_demo_app.py (run by `make setup`) applies these patches in
+# order with pinned author/committer identities and dates, so the resulting
+# commit hashes are byte-stable on every machine. The commits are the source
+# of truth for the fault catalog: each fault below names the commit that
+# introduced it, and the builder resolves ids to real hashes in
+# demo-app/.manifest.lock.json for the scenario deploy feed and the tests.
+#
+# The timeline is a normal shop's quarter: an initial import, incremental
+# feature/ops churn, six bad deploys, and the next-morning revert for each.
+# Because every fault is reverted, the final tree is byte-identical to the
+# files tracked in this repository — `make setup` never dirties the checkout.
+
+authors:
+  arjun: { name: "Arjun Mehta", email: "arjun@shopfront.example" }
+  priya: { name: "Priya Sharma", email: "priya@shopfront.example" }
+  dev: { name: "Dev Kulkarni", email: "dev@shopfront.example" }
+  sana: { name: "Sana Iqbal", email: "sana@shopfront.example" }
+
+commits:
+  - id: c01
+    author: priya
+    date: "2026-04-06T11:20:00+05:30"
+    patch: 01-initial-import.patch
+    message: "feat: initial import of the storefront services"
+
+  - id: c02
+    author: arjun
+    date: "2026-04-09T15:47:00+05:30"
+    patch: 02-readme-run-instructions.patch
+    message: "docs: add local run instructions to the readme"
+
+  - id: c03
+    author: dev
+    date: "2026-04-15T12:05:00+05:30"
+    patch: 03-catalog-detail-endpoint.patch
+    message: "feat(catalog): product detail endpoint behind the ttl cache"
+
+  - id: c04
+    author: sana
+    date: "2026-04-22T17:31:00+05:30"
+    patch: 04-notify-ring-size.patch
+    message: "chore(notify): grow the on-call recent ring"
+
+  - id: c05
+    author: arjun
+    date: "2026-05-04T18:56:00+05:30"
+    patch: 05-f1-retry-storm.patch
+    fault: F1
+    message: "perf(payment): tune retry behavior for receipt delivery"
+    body: |
+      Receipts occasionally dropped when notify-svc hiccuped mid-burst.
+      Retry until the receipt goes through instead of giving up after
+      three attempts.
+
+  - id: c06
+    author: priya
+    date: "2026-05-05T10:12:00+05:30"
+    patch: 06-f1-revert.patch
+    message: 'Revert "perf(payment): tune retry behavior for receipt delivery"'
+    body: |
+      Unbounded immediate retries amplified a notify-svc slowdown into a
+      payment-wide outage (INC-2107). Restore capped, backed-off retries.
+
+  - id: c07
+    author: priya
+    date: "2026-05-12T16:40:00+05:30"
+    patch: 07-f2-pool-exhaustion.patch
+    fault: F2
+    message: "chore(auth): shrink idle connections to the user store"
+    body: |
+      Connection census showed most of the pool idle outside evening peak.
+
+  - id: c08
+    author: dev
+    date: "2026-05-13T09:58:00+05:30"
+    patch: 08-f2-revert.patch
+    message: 'Revert "chore(auth): shrink idle connections to the user store"'
+    body: |
+      Login latency spiked as soon as evening traffic arrived; the pool
+      queued at 5 connections (INC-2113).
+
+  - id: c09
+    author: sana
+    date: "2026-05-26T14:22:00+05:30"
+    patch: 09-f3-cache-stampede.patch
+    fault: F3
+    message: "refactor(catalog): simplify cache expiry logic"
+    body: |
+      The jitter and single-flight paths were hard to follow; a plain TTL
+      check reads the same to callers.
+
+  - id: c10
+    author: dev
+    date: "2026-05-27T11:03:00+05:30"
+    patch: 10-f3-revert.patch
+    message: 'Revert "refactor(catalog): simplify cache expiry logic"'
+    body: |
+      Synchronized expiry stampeded the product database on hot keys
+      (INC-2121). Jitter and single-flight refresh are load-bearing.
+
+  - id: c11
+    author: arjun
+    date: "2026-06-02T19:14:00+05:30"
+    patch: 11-f4-mem-leak.patch
+    fault: F4
+    message: "feat(notify): keep full delivery history for analytics export"
+    body: |
+      The analytics team wants a full day of deliveries with payloads;
+      the nightly export job will truncate.
+
+  - id: c12
+    author: priya
+    date: "2026-06-04T10:45:00+05:30"
+    patch: 12-f4-revert.patch
+    message: 'Revert "feat(notify): keep full delivery history for analytics export"'
+    body: |
+      notify-svc RSS grew unbounded and OOM-cycled through the evening
+      peak (INC-2128). Analytics export needs a different pipeline.
+
+  - id: c13
+    author: dev
+    date: "2026-06-10T15:29:00+05:30"
+    patch: 13-f5-nplus1-query.patch
+    fault: F5
+    message: "refactor(catalog): uniform per-id fetch path"
+    body: |
+      One code path for every id keeps the cache logic uniform.
+
+  - id: c14
+    author: sana
+    date: "2026-06-11T09:37:00+05:30"
+    patch: 14-f5-revert.patch
+    message: 'Revert "refactor(catalog): uniform per-id fetch path"'
+    body: |
+      Listing pages fanned out one query per id; database call rate scaled
+      with page size (INC-2133). Batch reads restored.
+
+  - id: c15
+    author: sana
+    date: "2026-06-22T18:03:00+05:30"
+    patch: 15-f6-bad-config-push.patch
+    fault: F6
+    message: "chore(edge): trim gateway worker memory footprint"
+    body: |
+      Profiling showed most worker threads idle off-peak.
+
+  - id: c16
+    author: arjun
+    date: "2026-06-23T08:50:00+05:30"
+    patch: 16-f6-revert.patch
+    message: 'Revert "chore(edge): trim gateway worker memory footprint"'
+    body: |
+      The gateway queued at moderate load; four workers cannot cover
+      upstream latency (INC-2140).
+
+# Fault catalog. `file:line` is the citation in the tree AS OF the fault
+# commit (the revert restores the baseline); `pattern` is a regex the line
+# must match — tests verify both against the materialized history. The
+# builder copies these into .manifest.lock.json with ids resolved to real
+# hashes. `sub_type`/`mechanism` are the canonical strings ground-truth
+# labels use on the wire.
+faults:
+  F1:
+    sub_type: retry_storm
+    mechanism: unbounded_retry_no_backoff
+    commit: c05
+    fix_commit: c06
+    file: payment_svc/retry.py
+    line: 18
+    function: module
+    pattern: 'MAX_RETRIES\s*=\s*None'
+
+  F2:
+    sub_type: pool_exhaustion
+    mechanism: undersized_connection_pool
+    commit: c07
+    fix_commit: c08
+    file: auth_svc/server.py
+    line: 24
+    function: module
+    pattern: 'POOL_SIZE\s*=\s*5\b'
+
+  F3:
+    sub_type: cache_stampede
+    mechanism: synchronized_expiry_sync_refresh
+    commit: c09
+    fix_commit: c10
+    file: catalog_svc/cache.py
+    line: 25
+    function: TTLCache._expiry
+    pattern: '\+ self\._ttl_s$'
+
+  F4:
+    sub_type: mem_leak
+    mechanism: unbounded_retention_growth
+    commit: c11
+    fix_commit: c12
+    file: notify_svc/server.py
+    line: 21
+    function: module
+    pattern: 'RECENT: list\[dict\] = \[\]'
+
+  F5:
+    sub_type: nplus1_query
+    mechanism: per_item_query_loop
+    commit: c13
+    fix_commit: c14
+    file: catalog_svc/server.py
+    line: 92
+    function: CatalogHandler._load
+    pattern: 'DB\.fetch_one\(pid\) for pid in missing'
+
+  F6:
+    sub_type: bad_config_push
+    mechanism: undersized_worker_pool
+    commit: c15
+    fix_commit: c16
+    file: edge_gw/gateway.py
+    line: 24
+    function: module
+    pattern: 'WORKER_THREADS\s*=\s*4\b'

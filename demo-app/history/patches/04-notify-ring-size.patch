@@ -1,0 +1,13 @@
+diff --git a/notify_svc/server.py b/notify_svc/server.py
+index 2320aae..97bc57d 100644
+--- a/notify_svc/server.py
++++ b/notify_svc/server.py
+@@ -18,7 +18,7 @@ PROVIDER_COST_S = 0.03  # measured p50 of a provider handoff
+ PROVIDER_FLAKE_RATE = 0.01  # transient provider failures, weekly average
+ 
+ # The on-call view only ever needs the tail; the ring bounds memory.
+-RECENT_LIMIT = 1000
++RECENT_LIMIT = 2000
+ RECENT: deque[dict] = deque(maxlen=RECENT_LIMIT)
+ 
+ log = logging.getLogger("notify-svc")

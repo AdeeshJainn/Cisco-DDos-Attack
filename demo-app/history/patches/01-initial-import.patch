@@ -1,0 +1,885 @@
+diff --git a/README.md b/README.md
+new file mode 100644
+index 0000000..ba3fa24
+--- /dev/null
++++ b/README.md
+@@ -0,0 +1,44 @@
++# demo-app — the storefront the incidents happen to
++
++A compact five-service storefront: an edge gateway fronting auth, catalog and
++payment, with payment fanning out to a notification service.
++
++```
++edge-gw ──► auth-svc
++   ├──────► catalog-svc
++   └──────► payment-svc ──► notify-svc
++```
++
++[`topology.yaml`](topology.yaml) is the single world model — service names,
++code directories, call edges, per-service scale and capacity. The scenario
++generator and Argus's root-cause analysis read the same file, so the world
++that produces the telemetry and the graph RCA reasons over can never drift
++apart.
++
++## What is real here, and what is not
++
++This codebase exists to be diagnosed: faults are injected into it and Argus
++has to trace them back. We are explicit about where the line sits.
++
++- **The code is real.** Each service is a small, readable, dependency-free
++  Python program — handlers, a retry helper, a cache layer, a connection
++  pool. You can open any file and run it.
++- **The git history is real.** `demo-app/.git` is materialized by
++  `make setup` from a scripted timeline (`history/manifest.yaml` +
++  `history/patches/`) with pinned dates and identities, so commit hashes are
++  byte-stable on every machine. When RCA names a commit,
++  `git -C demo-app show <hash>` displays the actual offending diff on the
++  actual file and line.
++- **The traffic is simulated.** No cluster runs these services during a
++  replay; telemetry comes from the scenario engine, which drives load through
++  the capacity model declared in `topology.yaml`.
++
++## Services
++
++| Service | Directory | Role |
++|---|---|---|
++| edge-gw | `edge_gw/` | Public entry point; routes to the backends, bounds concurrency, times out fast |
++| auth-svc | `auth_svc/` | Login + token verification over a fixed-size DB connection pool |
++| catalog-svc | `catalog_svc/` | Product listings; TTL cache in front of batched database reads |
++| payment-svc | `payment_svc/` | Charge capture; receipt fan-out to notify-svc with bounded retries |
++| notify-svc | `notify_svc/` | Provider handoff for receipts/alerts; bounded recent-delivery ring |
+diff --git a/auth_svc/server.py b/auth_svc/server.py
+new file mode 100644
+index 0000000..8c0e356
+--- /dev/null
++++ b/auth_svc/server.py
+@@ -0,0 +1,157 @@
++"""auth-svc: login and session verification.
++
++Sessions are HMAC-signed tokens; credential lookups go through a fixed-size
++database connection pool so a login burst cannot pile unbounded connections
++onto the user store.
++"""
++
++import hashlib
++import hmac
++import json
++import logging
++import os
++import queue
++import time
++from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
++from urllib.parse import parse_qs, urlparse
++
++LISTEN_PORT = int(os.environ.get("PORT", "8081"))
++SIGNING_KEY = os.environ.get("AUTH_SIGNING_KEY", "dev-only-signing-key").encode()
++TOKEN_TTL_S = 3600
++
++# Pool sizing: a credentials lookup holds a connection ~20 ms, so 50
++# connections ride out login bursts well past the planned peak (see
++# topology.yaml capacity notes) without queueing.
++POOL_SIZE = 50
++CHECKOUT_TIMEOUT_S = 0.25
++QUERY_COST_S = 0.02  # measured p50 of the credentials lookup
++
++log = logging.getLogger("auth-svc")
++
++
++def _password_hash(password: str) -> str:
++    return hashlib.sha256(password.encode()).hexdigest()
++
++
++# The demo user table; production reads the same shape from the user store.
++USERS = {
++    "ava": _password_hash("hunter2"),
++    "sam": _password_hash("correct-horse"),
++    "kai": _password_hash("battery-staple"),
++}
++
++
++class PoolExhausted(Exception):
++    pass
++
++
++class ConnectionPool:
++    """Fixed-size pool of handles into the user store.
++
++    The stand-in cost model (one sleep per query) mirrors the production
++    lookup's p50, so saturation behaviour under load is faithful.
++    """
++
++    def __init__(self, size: int) -> None:
++        self._conns: queue.Queue[int] = queue.Queue(maxsize=size)
++        for conn_id in range(size):
++            self._conns.put(conn_id)
++
++    def query_password_hash(self, user: str) -> str | None:
++        try:
++            conn = self._conns.get(timeout=CHECKOUT_TIMEOUT_S)
++        except queue.Empty:
++            raise PoolExhausted("no database connection available") from None
++        try:
++            time.sleep(QUERY_COST_S)
++            return USERS.get(user)
++        finally:
++            self._conns.put(conn)
++
++
++POOL = ConnectionPool(POOL_SIZE)
++
++
++def issue_token(user: str) -> str:
++    payload = f"{user}:{int(time.time()) + TOKEN_TTL_S}"
++    sig = hmac.new(SIGNING_KEY, payload.encode(), hashlib.sha256).hexdigest()
++    return f"{payload}:{sig}"
++
++
++def verify_token(token: str) -> bool:
++    try:
++        user, expires, sig = token.rsplit(":", 2)
++    except ValueError:
++        return False
++    expect = hmac.new(SIGNING_KEY, f"{user}:{expires}".encode(), hashlib.sha256).hexdigest()
++    return hmac.compare_digest(sig, expect) and int(expires) > time.time()
++
++
++class AuthHandler(BaseHTTPRequestHandler):
++    server_version = "auth-svc/2.1"
++
++    def do_POST(self):
++        if self.path != "/login":
++            self._reply(404, {"error": "no such route"})
++            return
++        creds = self._body()
++        user = creds.get("user", "")
++        password = creds.get("password", "")
++        if not user or not password:
++            self._reply(400, {"error": "user and password required"})
++            return
++        try:
++            stored = POOL.query_password_hash(user)
++        except PoolExhausted:
++            log.error("connection pool exhausted during login for %r", user)
++            self._reply(503, {"error": "auth store unavailable"})
++            return
++        if stored is None or not hmac.compare_digest(_password_hash(password), stored):
++            self._reply(401, {"error": "invalid credentials"})
++            return
++        self._reply(200, {"token": issue_token(user)})
++
++    def do_GET(self):
++        url = urlparse(self.path)
++        if url.path == "/healthz":
++            self._reply(200, {"status": "ok"})
++            return
++        if url.path != "/verify":
++            self._reply(404, {"error": "no such route"})
++            return
++        token = parse_qs(url.query).get("token", [""])[0]
++        if not verify_token(token):
++            self._reply(401, {"valid": False})
++            return
++        self._reply(200, {"valid": True})
++
++    def _body(self) -> dict:
++        length = int(self.headers.get("Content-Length") or 0)
++        if not length:
++            return {}
++        try:
++            return json.loads(self.rfile.read(length))
++        except json.JSONDecodeError:
++            return {}
++
++    def _reply(self, status: int, obj: dict) -> None:
++        payload = json.dumps(obj).encode()
++        self.send_response(status)
++        self.send_header("Content-Type", "application/json")
++        self.send_header("Content-Length", str(len(payload)))
++        self.end_headers()
++        self.wfile.write(payload)
++
++    def log_message(self, fmt: str, *args) -> None:
++        log.info("%s %s", self.address_string(), fmt % args)
++
++
++def main() -> None:
++    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
++    server = ThreadingHTTPServer(("0.0.0.0", LISTEN_PORT), AuthHandler)
++    log.info("listening on :%d (pool=%d)", LISTEN_PORT, POOL_SIZE)
++    server.serve_forever()
++
++
++if __name__ == "__main__":
++    main()
+diff --git a/catalog_svc/cache.py b/catalog_svc/cache.py
+new file mode 100644
+index 0000000..8a761ae
+--- /dev/null
++++ b/catalog_svc/cache.py
+@@ -0,0 +1,80 @@
++"""In-process TTL cache for catalog reads.
++
++Two properties matter under load:
++
++- expiry is jittered per key, so a window of popular keys cached at the same
++  moment does not expire in the same instant and stampede the database;
++- refresh is single-flight: one thread reloads a stale key while the rest
++  keep serving the previous value.
++"""
++
++import random
++import threading
++import time
++from collections.abc import Callable
++
++TTL_S = 300.0
++TTL_JITTER_S = 45.0  # spread of expiry times; keep well under TTL_S
++
++
++class _Entry:
++    __slots__ = ("expires_at", "value")
++
++    def __init__(self, value: dict, expires_at: float) -> None:
++        self.value = value
++        self.expires_at = expires_at
++
++
++class TTLCache:
++    def __init__(self, ttl_s: float = TTL_S, jitter_s: float = TTL_JITTER_S) -> None:
++        self._ttl_s = ttl_s
++        self._jitter_s = jitter_s
++        self._entries: dict[str, _Entry] = {}
++        self._lock = threading.Lock()
++        self._refreshing: set[str] = set()
++
++    def _expiry(self) -> float:
++        return time.monotonic() + self._ttl_s + random.uniform(0.0, self._jitter_s)
++
++    def peek(self, key: str) -> dict | None:
++        """Return the cached value if present and fresh, else None."""
++        with self._lock:
++            entry = self._entries.get(key)
++            if entry is not None and entry.expires_at > time.monotonic():
++                return entry.value
++        return None
++
++    def put(self, key: str, value: dict) -> None:
++        with self._lock:
++            self._entries[key] = _Entry(value, self._expiry())
++
++    def get(self, key: str, loader: Callable[[], dict]) -> dict:
++        """Return the value for key, loading it if stale or missing.
++
++        On a stale hit only one caller pays for the reload; concurrent
++        callers are served the previous value until the reload lands.
++        """
++        with self._lock:
++            entry = self._entries.get(key)
++            if entry is not None and entry.expires_at > time.monotonic():
++                return entry.value
++            owner = key not in self._refreshing
++            if owner:
++                self._refreshing.add(key)
++        if not owner and entry is not None:
++            # Someone else is already reloading: serve stale rather than
++            # pile a second load onto the database.
++            return entry.value
++        # Owner of the refresh, or a cold miss racing the first fill.
++        try:
++            value = loader()
++            self.put(key, value)
++            return value
++        finally:
++            if owner:
++                with self._lock:
++                    self._refreshing.discard(key)
++
++    def invalidate(self, key: str) -> None:
++        with self._lock:
++            self._entries.pop(key, None)
+diff --git a/catalog_svc/server.py b/catalog_svc/server.py
+new file mode 100644
+index 0000000..4ab046c
+--- /dev/null
++++ b/catalog_svc/server.py
+@@ -0,0 +1,112 @@
++"""catalog-svc: product listings.
++
++Reads go through an in-process TTL cache (cache.py). Cache misses hit the
++product database in batches — one round trip per request, however many ids
++the page asks for.
++"""
++
++import json
++import logging
++import os
++import time
++import zlib
++from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
++from urllib.parse import parse_qs, urlparse
++
++from cache import TTLCache
++
++LISTEN_PORT = int(os.environ.get("PORT", "8082"))
++MAX_IDS_PER_REQUEST = 50
++
++# Stand-in for the product database client. Costs mirror production p50s:
++# each round trip pays a fixed cost plus a small per-row cost.
++DB_ROUND_TRIP_S = 0.004
++DB_PER_ROW_S = 0.0003
++
++log = logging.getLogger("catalog-svc")
++
++
++class ProductDB:
++    """Minimal product store with a batch read API."""
++
++    def fetch_many(self, ids: list[str]) -> dict[str, dict]:
++        time.sleep(DB_ROUND_TRIP_S + DB_PER_ROW_S * len(ids))
++        return {pid: self._row(pid) for pid in ids}
++
++    def fetch_one(self, pid: str) -> dict:
++        time.sleep(DB_ROUND_TRIP_S + DB_PER_ROW_S)
++        return self._row(pid)
++
++    @staticmethod
++    def _row(pid: str) -> dict:
++        return {
++            "id": pid,
++            "name": f"Product {pid}",
++            "price_cents": 999 + zlib.crc32(pid.encode()) % 9000,
++            "in_stock": True,
++        }
++
++
++DB = ProductDB()
++CACHE = TTLCache()
++
++
++class CatalogHandler(BaseHTTPRequestHandler):
++    server_version = "catalog-svc/3.2"
++
++    def do_GET(self):
++        url = urlparse(self.path)
++        if url.path == "/healthz":
++            self._reply(200, {"status": "ok"})
++            return
++        if url.path != "/products":
++            self._reply(404, {"error": "no such route"})
++            return
++        raw = parse_qs(url.query).get("ids", [""])[0]
++        ids = [pid.strip() for pid in raw.split(",") if pid.strip()]
++        if not ids:
++            self._reply(400, {"error": "ids required"})
++            return
++        if len(ids) > MAX_IDS_PER_REQUEST:
++            self._reply(400, {"error": f"at most {MAX_IDS_PER_REQUEST} ids per request"})
++            return
++        self._reply(200, {"products": self._load(ids)})
++
++    def _load(self, ids: list[str]) -> dict[str, dict]:
++        """Serve each id from cache; fetch all misses in one batch round trip."""
++        found: dict[str, dict] = {}
++        missing: list[str] = []
++        for pid in ids:
++            row = CACHE.peek(pid)
++            if row is None:
++                missing.append(pid)
++            else:
++                found[pid] = row
++        if missing:
++            rows = DB.fetch_many(missing)
++            for pid, row in rows.items():
++                CACHE.put(pid, row)
++            found.update(rows)
++        return found
++
++    def _reply(self, status: int, obj: dict) -> None:
++        payload = json.dumps(obj).encode()
++        self.send_response(status)
++        self.send_header("Content-Type", "application/json")
++        self.send_header("Content-Length", str(len(payload)))
++        self.end_headers()
++        self.wfile.write(payload)
++
++    def log_message(self, fmt: str, *args) -> None:
++        log.info("%s %s", self.address_string(), fmt % args)
++
++
++def main() -> None:
++    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
++    server = ThreadingHTTPServer(("0.0.0.0", LISTEN_PORT), CatalogHandler)
++    log.info("listening on :%d", LISTEN_PORT)
++    server.serve_forever()
++
++
++if __name__ == "__main__":
++    main()
+diff --git a/edge_gw/gateway.py b/edge_gw/gateway.py
+new file mode 100644
+index 0000000..2e8b503
+--- /dev/null
++++ b/edge_gw/gateway.py
+@@ -0,0 +1,115 @@
++"""edge-gw: public entry point for the storefront.
++
++Terminates client traffic and forwards it to the backend services. The
++gateway deliberately stays thin: route, bound concurrency, time out fast.
++"""
++
++import json
++import logging
++import os
++import threading
++import urllib.error
++import urllib.request
++from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
++
++LISTEN_PORT = int(os.environ.get("PORT", "8080"))
++
++# Upstream addresses; production injects these via the environment.
++AUTH_ADDR = os.environ.get("AUTH_ADDR", "http://localhost:8081")
++CATALOG_ADDR = os.environ.get("CATALOG_ADDR", "http://localhost:8082")
++PAYMENT_ADDR = os.environ.get("PAYMENT_ADDR", "http://localhost:8083")
++
++# Size of the forwarding pool per instance. Requests beyond it wait briefly
++# for a slot, then get shed with a 503 — the backends stay protected when the
++# front door floods.
++WORKER_THREADS = 32
++SLOT_WAIT_S = 0.5
++UPSTREAM_TIMEOUT_S = 2.5
++
++ROUTES = {
++    "/login": AUTH_ADDR,
++    "/verify": AUTH_ADDR,
++    "/products": CATALOG_ADDR,
++    "/checkout": PAYMENT_ADDR,
++}
++
++log = logging.getLogger("edge-gw")
++
++
++class Gateway(BaseHTTPRequestHandler):
++    server_version = "edge-gw/1.4"
++    _slots = threading.BoundedSemaphore(WORKER_THREADS)
++
++    def do_GET(self):
++        self._handle()
++
++    def do_POST(self):
++        self._handle()
++
++    def _handle(self) -> None:
++        if self.path == "/healthz":
++            self._reply(200, {"status": "ok"})
++            return
++        upstream = self._route()
++        if upstream is None:
++            self._reply(404, {"error": "no such route"})
++            return
++        if not self._slots.acquire(timeout=SLOT_WAIT_S):
++            log.warning("worker pool exhausted, shedding %s", self.path)
++            self._reply(503, {"error": "gateway busy"})
++            return
++        try:
++            self._proxy(upstream)
++        finally:
++            self._slots.release()
++
++    def _route(self) -> str | None:
++        path = self.path.split("?", 1)[0]
++        for prefix, upstream in ROUTES.items():
++            if path == prefix or path.startswith(prefix + "/"):
++                return upstream
++        return None
++
++    def _proxy(self, upstream: str) -> None:
++        body = None
++        length = int(self.headers.get("Content-Length") or 0)
++        if length:
++            body = self.rfile.read(length)
++        req = urllib.request.Request(
++            upstream + self.path,
++            data=body,
++            method=self.command,
++            headers={"Content-Type": self.headers.get("Content-Type", "application/json")},
++        )
++        try:
++            with urllib.request.urlopen(req, timeout=UPSTREAM_TIMEOUT_S) as resp:
++                self._reply_raw(resp.status, resp.read())
++        except urllib.error.HTTPError as err:
++            self._reply_raw(err.code, err.read())
++        except (urllib.error.URLError, TimeoutError):
++            log.error("upstream %s timed out for %s", upstream, self.path)
++            self._reply(504, {"error": "upstream timeout"})
++
++    def _reply(self, status: int, obj: dict) -> None:
++        self._reply_raw(status, json.dumps(obj).encode())
++
++    def _reply_raw(self, status: int, payload: bytes) -> None:
++        self.send_response(status)
++        self.send_header("Content-Type", "application/json")
++        self.send_header("Content-Length", str(len(payload)))
++        self.end_headers()
++        self.wfile.write(payload)
++
++    def log_message(self, fmt: str, *args) -> None:
++        log.info("%s %s", self.address_string(), fmt % args)
++
++
++def main() -> None:
++    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
++    server = ThreadingHTTPServer(("0.0.0.0", LISTEN_PORT), Gateway)
++    log.info("listening on :%d (workers=%d)", LISTEN_PORT, WORKER_THREADS)
++    server.serve_forever()
++
++
++if __name__ == "__main__":
++    main()
+diff --git a/notify_svc/server.py b/notify_svc/server.py
+new file mode 100644
+index 0000000..2320aae
+--- /dev/null
++++ b/notify_svc/server.py
+@@ -0,0 +1,99 @@
++"""notify-svc: receipt and alert delivery.
++
++Wraps the mail/push providers behind one /send endpoint. Recent deliveries
++are kept for the on-call debugging view (/recent) in a bounded ring, so
++retention can never grow with traffic.
++"""
++
++import json
++import logging
++import os
++import random
++import time
++from collections import deque
++from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
++
++LISTEN_PORT = int(os.environ.get("PORT", "8084"))
++PROVIDER_COST_S = 0.03  # measured p50 of a provider handoff
++PROVIDER_FLAKE_RATE = 0.01  # transient provider failures, weekly average
++
++# The on-call view only ever needs the tail; the ring bounds memory.
++RECENT_LIMIT = 1000
++RECENT: deque[dict] = deque(maxlen=RECENT_LIMIT)
++
++log = logging.getLogger("notify-svc")
++
++
++class ProviderError(Exception):
++    pass
++
++
++def deliver(message: dict) -> str:
++    """Hand the message to the provider; returns the provider message id."""
++    time.sleep(PROVIDER_COST_S)
++    if random.random() < PROVIDER_FLAKE_RATE:
++        raise ProviderError("provider rejected the handoff")
++    return f"msg_{int(time.time() * 1000):x}"
++
++
++class NotifyHandler(BaseHTTPRequestHandler):
++    server_version = "notify-svc/1.2"
++
++    def do_POST(self):
++        if self.path != "/send":
++            self._reply(404, {"error": "no such route"})
++            return
++        message = self._body()
++        to = message.get("to", "")
++        kind = message.get("kind", "generic")
++        if not to:
++            self._reply(400, {"error": "recipient required"})
++            return
++        try:
++            msg_id = deliver(message)
++        except ProviderError as err:
++            log.warning("delivery to %s failed: %s", to, err)
++            self._reply(502, {"error": "provider unavailable"})
++            return
++        RECENT.append({"ts": time.time(), "to": to, "kind": kind, "msg_id": msg_id})
++        self._reply(200, {"msg_id": msg_id, "status": "sent"})
++
++    def do_GET(self):
++        if self.path == "/healthz":
++            self._reply(200, {"status": "ok"})
++            return
++        if self.path != "/recent":
++            self._reply(404, {"error": "no such route"})
++            return
++        self._reply(200, {"recent": list(RECENT)[-50:]})
++
++    def _body(self) -> dict:
++        length = int(self.headers.get("Content-Length") or 0)
++        if not length:
++            return {}
++        try:
++            return json.loads(self.rfile.read(length))
++        except json.JSONDecodeError:
++            return {}
++
++    def _reply(self, status: int, obj: dict) -> None:
++        payload = json.dumps(obj).encode()
++        self.send_response(status)
++        self.send_header("Content-Type", "application/json")
++        self.send_header("Content-Length", str(len(payload)))
++        self.end_headers()
++        self.wfile.write(payload)
++
++    def log_message(self, fmt: str, *args) -> None:
++        log.info("%s %s", self.address_string(), fmt % args)
++
++
++def main() -> None:
++    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
++    server = ThreadingHTTPServer(("0.0.0.0", LISTEN_PORT), NotifyHandler)
++    log.info("listening on :%d (recent ring=%d)", LISTEN_PORT, RECENT_LIMIT)
++    server.serve_forever()
++
++
++if __name__ == "__main__":
++    main()
+diff --git a/payment_svc/retry.py b/payment_svc/retry.py
+new file mode 100644
+index 0000000..5d0ce85
+--- /dev/null
++++ b/payment_svc/retry.py
+@@ -0,0 +1,49 @@
++"""Retry helper for payment-svc's outbound calls.
++
++Downstream hiccups — a slow notify instance, a dropped connection — are
++common enough that every outbound call goes through call_with_retry. Two
++rules keep retries safe:
++
++- attempts are capped, so a dependency that is actually down gets surfaced
++  instead of hammered;
++- waits grow exponentially with jitter, so a herd of callers backs off
++  instead of retrying in lockstep.
++"""
++
++import logging
++import random
++import time
++from collections.abc import Callable
++
++MAX_RETRIES = 3  # total attempts = 1 + MAX_RETRIES
++BASE_DELAY_S = 0.2
++BACKOFF_FACTOR = 2.0
++MAX_DELAY_S = 2.0
++
++log = logging.getLogger("payment-svc.retry")
++
++
++class TransientError(Exception):
++    """Raise for failures worth retrying (timeouts, 5xx from a dependency)."""
++
++
++def backoff_delay(attempt: int) -> float:
++    """Delay before retry `attempt` (1-based): exponential, capped, jittered."""
++    delay = min(BASE_DELAY_S * BACKOFF_FACTOR ** (attempt - 1), MAX_DELAY_S)
++    return delay * random.uniform(0.5, 1.0)
++
++
++def call_with_retry(fn: Callable[[], object], *, what: str = "call") -> object:
++    """Run fn, retrying TransientError up to MAX_RETRIES times with backoff."""
++    attempt = 0
++    while True:
++        try:
++            return fn()
++        except TransientError as err:
++            attempt += 1
++            if attempt > MAX_RETRIES:
++                log.error("%s failed after %d attempts: %s", what, attempt, err)
++                raise
++            delay = backoff_delay(attempt)
++            log.warning("%s attempt %d failed (%s); retrying in %.2fs", what, attempt, err, delay)
++            time.sleep(delay)
+diff --git a/payment_svc/server.py b/payment_svc/server.py
+new file mode 100644
+index 0000000..bad6bf8
+--- /dev/null
++++ b/payment_svc/server.py
+@@ -0,0 +1,110 @@
++"""payment-svc: charge capture and receipt fan-out.
++
++A checkout captures the charge against the processor, then hands a receipt
++to notify-svc. Receipt delivery rides call_with_retry (retry.py): notify
++hiccups are retried a bounded number of times, after which the receipt is
++parked for the reconciliation sweep rather than blocking the charge
++response.
++"""
++
++import json
++import logging
++import os
++import time
++import urllib.error
++import urllib.request
++import uuid
++from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
++
++from retry import TransientError, call_with_retry
++
++LISTEN_PORT = int(os.environ.get("PORT", "8083"))
++NOTIFY_ADDR = os.environ.get("NOTIFY_ADDR", "http://localhost:8084")
++NOTIFY_TIMEOUT_S = 1.5
++PROCESSOR_COST_S = 0.05  # measured p50 of a capture against the processor
++
++log = logging.getLogger("payment-svc")
++
++
++def capture_charge(order_id: str, amount_cents: int) -> str:
++    """Capture the charge with the payment processor (stand-in cost model)."""
++    time.sleep(PROCESSOR_COST_S)
++    return f"ch_{uuid.uuid4().hex[:12]}"
++
++
++def send_receipt(order_id: str, charge_id: str, email: str) -> None:
++    payload = json.dumps(
++        {"kind": "receipt", "order_id": order_id, "charge_id": charge_id, "to": email}
++    ).encode()
++    req = urllib.request.Request(
++        NOTIFY_ADDR + "/send", data=payload, headers={"Content-Type": "application/json"}
++    )
++    try:
++        with urllib.request.urlopen(req, timeout=NOTIFY_TIMEOUT_S):
++            pass
++    except (urllib.error.URLError, TimeoutError) as err:
++        raise TransientError(f"notify-svc unavailable: {err}") from err
++
++
++class PaymentHandler(BaseHTTPRequestHandler):
++    server_version = "payment-svc/1.7"
++
++    def do_POST(self):
++        if self.path != "/checkout":
++            self._reply(404, {"error": "no such route"})
++            return
++        order = self._body()
++        order_id = order.get("order_id", "")
++        amount_cents = order.get("amount_cents", 0)
++        email = order.get("email", "")
++        if not order_id or not email or amount_cents <= 0:
++            self._reply(400, {"error": "order_id, amount_cents and email required"})
++            return
++        charge_id = capture_charge(order_id, amount_cents)
++        try:
++            call_with_retry(
++                lambda: send_receipt(order_id, charge_id, email),
++                what=f"receipt for {order_id}",
++            )
++        except TransientError:
++            # The charge is captured either way; a receipt that exhausted its
++            # retries is parked for the reconciliation sweep.
++            log.error("receipt for %s parked for reconciliation", order_id)
++        self._reply(200, {"charge_id": charge_id, "status": "captured"})
++
++    def do_GET(self):
++        if self.path == "/healthz":
++            self._reply(200, {"status": "ok"})
++            return
++        self._reply(404, {"error": "no such route"})
++
++    def _body(self) -> dict:
++        length = int(self.headers.get("Content-Length") or 0)
++        if not length:
++            return {}
++        try:
++            return json.loads(self.rfile.read(length))
++        except json.JSONDecodeError:
++            return {}
++
++    def _reply(self, status: int, obj: dict) -> None:
++        payload = json.dumps(obj).encode()
++        self.send_response(status)
++        self.send_header("Content-Type", "application/json")
++        self.send_header("Content-Length", str(len(payload)))
++        self.end_headers()
++        self.wfile.write(payload)
++
++    def log_message(self, fmt: str, *args) -> None:
++        log.info("%s %s", self.address_string(), fmt % args)
++
++
++def main() -> None:
++    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
++    server = ThreadingHTTPServer(("0.0.0.0", LISTEN_PORT), PaymentHandler)
++    log.info("listening on :%d (notify=%s)", LISTEN_PORT, NOTIFY_ADDR)
++    server.serve_forever()
++
++
++if __name__ == "__main__":
++    main()
+diff --git a/topology.yaml b/topology.yaml
+new file mode 100644
+index 0000000..d678d59
+--- /dev/null
++++ b/topology.yaml
+@@ -0,0 +1,65 @@
++# topology.yaml — the world model for the storefront stack.
++#
++# Everything that needs the shape of this system reads it from here: load
++# planning, the scenario generator (per-service scale and capacity) and
++# root-cause analysis (call edges) all share this one file. Service names
++# are the canonical wire names used in metrics, traces and deploy records;
++# `dir` maps each service to its code directory in this repo.
++#
++# Capacity notes: `capacity_rps` is the fleet-wide throughput where p95
++# latency starts to knee (~80% utilization is the planning line, not the
++# ceiling). `base_rps` is the steady weekday mid-afternoon rate.
++
++services:
++  edge-gw:
++    dir: edge_gw
++    port: 8080
++    replicas: 4
++    base_rps: 1800
++    capacity_rps: 15000
++    max_conns: 8000
++  auth-svc:
++    dir: auth_svc
++    port: 8081
++    replicas: 2
++    base_rps: 220
++    capacity_rps: 2000
++    max_conns: 400
++  catalog-svc:
++    dir: catalog_svc
++    port: 8082
++    replicas: 3
++    base_rps: 900
++    capacity_rps: 7500
++    max_conns: 1200
++  payment-svc:
++    dir: payment_svc
++    port: 8083
++    replicas: 2
++    base_rps: 250
++    capacity_rps: 800
++    max_conns: 300
++  notify-svc:
++    dir: notify_svc
++    port: 8084
++    replicas: 2
++    base_rps: 240
++    capacity_rps: 600
++    max_conns: 200
++
++# Call graph. `calls_per_request` is the average number of calls the caller
++# makes to the callee per request it serves (from trace sampling), so each
++# callee's base_rps ≈ sum over incoming edges of caller base_rps × ratio.
++edges:
++  - caller: edge-gw
++    callee: auth-svc
++    calls_per_request: 0.12
++  - caller: edge-gw
++    callee: catalog-svc
++    calls_per_request: 0.50
++  - caller: edge-gw
++    callee: payment-svc
++    calls_per_request: 0.14
++  - caller: payment-svc
++    callee: notify-svc
++    calls_per_request: 0.95

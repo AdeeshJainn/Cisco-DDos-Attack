@@ -1,0 +1,34 @@
+diff --git a/catalog_svc/server.py b/catalog_svc/server.py
+index 4ab046c..cff0a56 100644
+--- a/catalog_svc/server.py
++++ b/catalog_svc/server.py
+@@ -1,4 +1,4 @@
+-"""catalog-svc: product listings.
++"""catalog-svc: product listings and detail lookups.
+ 
+ Reads go through an in-process TTL cache (cache.py). Cache misses hit the
+ product database in batches — one round trip per request, however many ids
+@@ -59,6 +59,11 @@ class CatalogHandler(BaseHTTPRequestHandler):
+         if url.path == "/healthz":
+             self._reply(200, {"status": "ok"})
+             return
++        if url.path.startswith("/product/"):
++            pid = url.path.removeprefix("/product/")
++            row = CACHE.get(pid, lambda: DB.fetch_one(pid))
++            self._reply(200, {"product": row})
++            return
+         if url.path != "/products":
+             self._reply(404, {"error": "no such route"})
+             return
+diff --git a/edge_gw/gateway.py b/edge_gw/gateway.py
+index 2e8b503..9f51b00 100644
+--- a/edge_gw/gateway.py
++++ b/edge_gw/gateway.py
+@@ -30,6 +30,7 @@ ROUTES = {
+     "/login": AUTH_ADDR,
+     "/verify": AUTH_ADDR,
+     "/products": CATALOG_ADDR,
++    "/product": CATALOG_ADDR,
+     "/checkout": PAYMENT_ADDR,
+ }
+ 

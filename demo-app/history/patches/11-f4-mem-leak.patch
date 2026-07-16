@@ -1,0 +1,53 @@
+diff --git a/notify_svc/server.py b/notify_svc/server.py
+index 97bc57d..f4c4871 100644
+--- a/notify_svc/server.py
++++ b/notify_svc/server.py
+@@ -10,16 +10,15 @@ import logging
+ import os
+ import random
+ import time
+-from collections import deque
+ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+ 
+ LISTEN_PORT = int(os.environ.get("PORT", "8084"))
+ PROVIDER_COST_S = 0.03  # measured p50 of a provider handoff
+ PROVIDER_FLAKE_RATE = 0.01  # transient provider failures, weekly average
+ 
+-# The on-call view only ever needs the tail; the ring bounds memory.
+-RECENT_LIMIT = 2000
+-RECENT: deque[dict] = deque(maxlen=RECENT_LIMIT)
++# Analytics wants full delivery history with payloads; the nightly export
++# job will truncate.
++RECENT: list[dict] = []
+ 
+ log = logging.getLogger("notify-svc")
+ 
+@@ -55,7 +54,9 @@ class NotifyHandler(BaseHTTPRequestHandler):
+             log.warning("delivery to %s failed: %s", to, err)
+             self._reply(502, {"error": "provider unavailable"})
+             return
+-        RECENT.append({"ts": time.time(), "to": to, "kind": kind, "msg_id": msg_id})
++        RECENT.append(
++            {"ts": time.time(), "to": to, "kind": kind, "msg_id": msg_id, "message": message}
++        )
+         self._reply(200, {"msg_id": msg_id, "status": "sent"})
+ 
+     def do_GET(self):
+@@ -65,7 +66,7 @@ class NotifyHandler(BaseHTTPRequestHandler):
+         if self.path != "/recent":
+             self._reply(404, {"error": "no such route"})
+             return
+-        self._reply(200, {"recent": list(RECENT)[-50:]})
++        self._reply(200, {"recent": RECENT[-50:]})
+ 
+     def _body(self) -> dict:
+         length = int(self.headers.get("Content-Length") or 0)
+@@ -91,7 +92,7 @@ class NotifyHandler(BaseHTTPRequestHandler):
+ def main() -> None:
+     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
+     server = ThreadingHTTPServer(("0.0.0.0", LISTEN_PORT), NotifyHandler)
+-    log.info("listening on :%d (recent ring=%d)", LISTEN_PORT, RECENT_LIMIT)
++    log.info("listening on :%d", LISTEN_PORT)
+     server.serve_forever()
+ 
+ 

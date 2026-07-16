@@ -1,0 +1,25 @@
+diff --git a/payment_svc/retry.py b/payment_svc/retry.py
+index 5d0ce85..a535d69 100644
+--- a/payment_svc/retry.py
++++ b/payment_svc/retry.py
+@@ -15,7 +15,7 @@ import random
+ import time
+ from collections.abc import Callable
+ 
+-MAX_RETRIES = 3  # total attempts = 1 + MAX_RETRIES
++MAX_RETRIES = None  # retry until the receipt goes through
+ BASE_DELAY_S = 0.2
+ BACKOFF_FACTOR = 2.0
+ MAX_DELAY_S = 2.0
+@@ -41,9 +41,7 @@ def call_with_retry(fn: Callable[[], object], *, what: str = "call") -> object:
+             return fn()
+         except TransientError as err:
+             attempt += 1
+-            if attempt > MAX_RETRIES:
++            if MAX_RETRIES is not None and attempt > MAX_RETRIES:
+                 log.error("%s failed after %d attempts: %s", what, attempt, err)
+                 raise
+-            delay = backoff_delay(attempt)
+-            log.warning("%s attempt %d failed (%s); retrying in %.2fs", what, attempt, err, delay)
+-            time.sleep(delay)
++            log.warning("%s attempt %d failed (%s); retrying now", what, attempt, err)

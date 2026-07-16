@@ -1,0 +1,31 @@
+diff --git a/README.md b/README.md
+index ba3fa24..2ca30d8 100644
+--- a/README.md
++++ b/README.md
+@@ -42,3 +42,26 @@ has to trace them back. We are explicit about where the line sits.
+ | catalog-svc | `catalog_svc/` | Product listings; TTL cache in front of batched database reads |
+ | payment-svc | `payment_svc/` | Charge capture; receipt fan-out to notify-svc with bounded retries |
+ | notify-svc | `notify_svc/` | Provider handoff for receipts/alerts; bounded recent-delivery ring |
++
++## Running a service locally
++
++Every service is stdlib-only Python 3.11 — no installs. Each takes its port
++from `PORT` and its upstream addresses from environment variables (defaults
++match `topology.yaml`):
++
++```sh
++cd demo-app
++python notify_svc/server.py &
++python payment_svc/server.py &
++python auth_svc/server.py &
++python catalog_svc/server.py &
++python edge_gw/gateway.py
++```
++
++Then, for example:
++
++```sh
++curl -s 'http://localhost:8080/products?ids=42,7'
++curl -s -X POST 'http://localhost:8080/checkout' \
++  -d '{"order_id": "o-1", "amount_cents": 4999, "email": "ava@example.com"}'
++```

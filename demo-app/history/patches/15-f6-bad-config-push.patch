@@ -1,0 +1,18 @@
+diff --git a/edge_gw/gateway.py b/edge_gw/gateway.py
+index 9f51b00..06ede11 100644
+--- a/edge_gw/gateway.py
++++ b/edge_gw/gateway.py
+@@ -19,10 +19,9 @@ AUTH_ADDR = os.environ.get("AUTH_ADDR", "http://localhost:8081")
+ CATALOG_ADDR = os.environ.get("CATALOG_ADDR", "http://localhost:8082")
+ PAYMENT_ADDR = os.environ.get("PAYMENT_ADDR", "http://localhost:8083")
+ 
+-# Size of the forwarding pool per instance. Requests beyond it wait briefly
+-# for a slot, then get shed with a 503 — the backends stay protected when the
+-# front door floods.
+-WORKER_THREADS = 32
++# Profiling showed most worker threads idle off-peak; a smaller pool cuts
++# the per-instance memory footprint.
++WORKER_THREADS = 4
+ SLOT_WAIT_S = 0.5
+ UPSTREAM_TIMEOUT_S = 2.5
+ 
