@@ -15,6 +15,61 @@ from dataclasses import dataclass, field
 class ScenarioConfig:
     """Generation: base-load shapes, capacity model, warmup."""
 
+    # Detectors calibrate on two complete daily cycles before scored replay.
+    warmup_hours: int = 48
+    # The judged portion spans one day so profiles can place incidents freely.
+    scenario_hours: int = 24
+    # Warmup is intentionally coarse to keep calibration files compact.
+    warmup_resolution_s: int = 60
+    # Scored telemetry is one-second resolution for latency and MTTR grading.
+    resolution_s: int = 1
+
+    # Mid-afternoon is the topology's documented base_rps reference point.
+    diurnal_peak_hour_utc: float = 15.0
+    # Two smooth harmonics model the common overnight trough and lunch shoulder;
+    # amplitudes sum with the floor to 1.0 at the reference peak.
+    diurnal_floor: float = 0.72
+    diurnal_primary_amplitude: float = 0.20
+    diurnal_secondary_amplitude: float = 0.08
+    # Monday..Sunday multipliers encode ordinary lower weekend demand, not any
+    # authored scenario timeline.
+    weekly_multipliers: tuple[float, ...] = (1.00, 1.00, 1.00, 1.00, 1.02, 0.84, 0.78)
+
+    # Minute-scale persistence gives realistic autocorrelation while the
+    # stationary standard deviation stays a small fraction of base demand.
+    ar1_phi_per_minute: float = 0.92
+    ar1_sigma_fraction: float = 0.035
+    # Prevent the stochastic term from creating physically impossible demand.
+    minimum_load_factor: float = 0.15
+
+    # Queueing pressure begins at the conventional 80% planning line documented
+    # in topology.yaml, before the hard fleet throughput ceiling.
+    capacity_knee_utilization: float = 0.80
+    # Healthy-service latency floor and response gains are generic capacity
+    # curve parameters shared by every service and every seed.
+    latency_floor_ms: float = 12.0
+    latency_util_gain: float = 0.70
+    latency_pressure_gain: float = 5.0
+    p95_multiplier: float = 2.0
+    p99_multiplier: float = 3.2
+    # CPU and memory remain plausible percentages and rise with utilization.
+    idle_cpu_pct: float = 7.0
+    cpu_util_gain_pct: float = 68.0
+    cpu_pressure_gain_pct: float = 28.0
+    idle_mem_pct: float = 24.0
+    mem_util_gain_pct: float = 34.0
+    mem_pressure_gain_pct: float = 10.0
+    # Baseline active connections reserve a small pool slice; Little's-law
+    # demand and overload pressure add to it.
+    idle_connection_fraction: float = 0.03
+    connection_latency_weight: float = 1.4
+    connection_pressure_fraction: float = 0.35
+    # Excess arrivals accumulate over this short effective drain interval.
+    queue_drain_window_s: float = 1.5
+    # Healthy errors are non-zero; only overload beyond capacity adds sharply.
+    baseline_error_rate: float = 0.001
+    overload_error_gain: float = 0.45
+
 
 @dataclass(frozen=True)
 class DetectionConfig:
