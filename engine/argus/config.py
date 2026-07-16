@@ -145,6 +145,20 @@ class DetectionConfig:
     expected_ewma_alpha: float = 0.25
     # Residual score saturates when excess reaches four band half-widths.
     residual_score_cap: float = 4.0
+    # Fifteen trailing minutes captures local behavior without spanning an
+    # entire event phase; open incidents are excluded from this history.
+    ratio_window_s: float = 900.0
+    # Require enough clean samples before judging a behavioral ratio.
+    ratio_min_samples: int = 30
+    # Four robust sigmas sustained for 30 seconds opens a deformation; two
+    # sigmas releases it to prevent alert flapping.
+    ratio_enter_z: float = 4.0
+    ratio_release_z: float = 2.0
+    ratio_sustain_s: float = 30.0
+    # Numerical floor only; scaled against the baseline median.
+    ratio_epsilon: float = 1e-6
+    # Ratio anomaly scores saturate at eight robust sigmas.
+    ratio_score_cap_z: float = 8.0
 
 
 @dataclass(frozen=True)
