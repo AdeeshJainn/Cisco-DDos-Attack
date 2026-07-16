@@ -22,9 +22,9 @@ jobs:
         env:
           HYPOTHESIS_PROFILE: ci
       - name: labels isolation lint
-        # Placeholder until the ground-truth writer exists; replaced by an AST
-        # check that nothing under argus/ imports labels or reads label files.
-        run: echo "labels-isolation lint activates with the contracts phase"
+        # AST guard: nothing outside the scenario generator may import the
+        # ground-truth writer or reference label file paths.
+        run: uv run --project engine python scripts/lint_labels_isolation.py
 
   dashboard:
     runs-on: ubuntu-latest

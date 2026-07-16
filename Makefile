@@ -18,6 +18,7 @@ setup:
 test:
 	$(UV) run --project engine ruff format --check .
 	$(UV) run --project engine ruff check .
+	$(UV) run --project engine python scripts/lint_labels_isolation.py
 	$(UV) run --project engine pytest || [ $$? -eq 5 ]
 	cd dashboard && $(NPM) run typecheck
 	cd dashboard && $(NPM) run test
