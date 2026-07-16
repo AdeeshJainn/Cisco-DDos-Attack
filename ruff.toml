@@ -1,0 +1,14 @@
+# One config for the whole repo (engine, tests, scripts, scoring).
+target-version = "py311"
+line-length = 100
+
+[lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "W",   # pycodestyle warnings
+    "I",   # import sorting
+    "UP",  # modern syntax for the pinned python
+    "B",   # likely bugs
+    "SIM", # needless complexity
+]

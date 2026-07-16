@@ -1,0 +1,15 @@
+# Format + lint gate on every commit; the full suite still runs via `make test`.
+# Hooks use the engine's pinned ruff so local and CI agree on versions.
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-format
+        name: ruff format
+        entry: uv run --project engine ruff format
+        language: system
+        types_or: [python]
+      - id: ruff-check
+        name: ruff check
+        entry: uv run --project engine ruff check --fix
+        language: system
+        types_or: [python]

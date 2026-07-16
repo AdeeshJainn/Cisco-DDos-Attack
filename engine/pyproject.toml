@@ -20,6 +20,14 @@ ml = [
     "xgboost>=2.0",
 ]
 
+[dependency-groups]
+dev = [
+    "ruff>=0.8",
+    "pytest>=8.3",
+    "hypothesis>=6.115",
+    "pre-commit>=4.0",
+]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
