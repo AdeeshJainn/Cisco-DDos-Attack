@@ -159,6 +159,11 @@ class DetectionConfig:
     ratio_epsilon: float = 1e-6
     # Ratio anomaly scores saturate at eight robust sigmas.
     ratio_score_cap_z: float = 8.0
+    # Symptom gates require a material score sustained for 30 seconds; release
+    # is deliberately lower to prevent incident flapping.
+    symptom_enter_score: float = 0.60
+    symptom_release_score: float = 0.30
+    symptom_sustain_s: float = 30.0
 
 
 @dataclass(frozen=True)
