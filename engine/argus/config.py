@@ -201,6 +201,17 @@ class ReplayConfig:
 
 
 @dataclass(frozen=True)
+class ScoringConfig:
+    """Incident matching and decision/reason rubric."""
+
+    # Any positive temporal overlap is useful, but 10% IoU avoids matching
+    # unrelated long windows that merely touch.
+    incident_iou_threshold: float = 0.10
+    # Official rubric: right action with wrong reason earns partial credit.
+    wrong_reason_partial_credit: float = 0.50
+
+
+@dataclass(frozen=True)
 class Config:
     """Root namespace; import CONFIG rather than instantiating."""
 
@@ -210,6 +221,7 @@ class Config:
     rca: RcaConfig = field(default_factory=RcaConfig)
     policy: PolicyConfig = field(default_factory=PolicyConfig)
     replay: ReplayConfig = field(default_factory=ReplayConfig)
+    scoring: ScoringConfig = field(default_factory=ScoringConfig)
 
 
 CONFIG = Config()

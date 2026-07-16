@@ -35,7 +35,7 @@ replay:
 		$(UV) run --project engine uvicorn argus.api.app:app --host 127.0.0.1 --port $${PORT:-8000}
 
 score:
-	@echo "make score: lands in phase 4 (scoring harness)"; exit 1
+	$(UV) run --project engine python -m scoring.harness --labels "$${LABELS:?set LABELS=path}" --predictions "$${PREDICTIONS:?set PREDICTIONS=path}"
 
 seeds:
 	$(UV) run --project engine python scripts/gen_scenarios.py --count $${N:-1} --start-seed $${START_SEED:-1} --profile $${PROFILE:-match_night}
