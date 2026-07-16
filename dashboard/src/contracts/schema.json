@@ -1,0 +1,1539 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ArgusContracts",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "scenario_header": {
+      "$ref": "#/$defs/ScenarioHeader"
+    },
+    "metric_record": {
+      "$ref": "#/$defs/MetricRecord"
+    },
+    "net_record": {
+      "$ref": "#/$defs/NetRecord"
+    },
+    "log_record": {
+      "$ref": "#/$defs/LogRecord"
+    },
+    "trace_record": {
+      "$ref": "#/$defs/TraceRecord"
+    },
+    "calendar_record": {
+      "$ref": "#/$defs/CalendarRecord"
+    },
+    "deploy_record": {
+      "$ref": "#/$defs/DeployRecord"
+    },
+    "ground_truth_labels": {
+      "$ref": "#/$defs/GroundTruthLabels"
+    },
+    "decomp_frame": {
+      "$ref": "#/$defs/DecompFrame"
+    },
+    "incident": {
+      "$ref": "#/$defs/Incident"
+    },
+    "verdict": {
+      "$ref": "#/$defs/Verdict"
+    },
+    "rca_result": {
+      "$ref": "#/$defs/RcaResult"
+    },
+    "decision": {
+      "$ref": "#/$defs/Decision"
+    },
+    "action": {
+      "$ref": "#/$defs/Action"
+    },
+    "rollback": {
+      "$ref": "#/$defs/Rollback"
+    },
+    "clock_payload": {
+      "$ref": "#/$defs/ClockPayload"
+    },
+    "approval_request": {
+      "$ref": "#/$defs/ApprovalRequestPayload"
+    },
+    "mttr_record": {
+      "$ref": "#/$defs/MttrRecord"
+    },
+    "ws_envelope": {
+      "$ref": "#/$defs/WsEnvelope"
+    }
+  },
+  "$defs": {
+    "Action": {
+      "properties": {
+        "type": {
+          "const": "action",
+          "default": "action",
+          "type": "string"
+        },
+        "action_id": {
+          "type": "string"
+        },
+        "decision_id": {
+          "type": "string"
+        },
+        "ts": {
+          "type": "number"
+        },
+        "rung": {
+          "$ref": "#/$defs/ActionRung"
+        },
+        "target": {
+          "$ref": "#/$defs/ActionTarget"
+        },
+        "blast_radius": {
+          "$ref": "#/$defs/BlastRadius"
+        },
+        "trigger": {
+          "type": "string"
+        },
+        "expected_effect": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "action_id",
+        "decision_id",
+        "ts",
+        "rung",
+        "target",
+        "blast_radius",
+        "trigger",
+        "expected_effect"
+      ],
+      "title": "Action",
+      "type": "object"
+    },
+    "ActionRung": {
+      "enum": [
+        "observe",
+        "rate_limit",
+        "throttle",
+        "isolate",
+        "scale_out",
+        "pre_scale",
+        "restart",
+        "reroute"
+      ],
+      "title": "ActionRung",
+      "type": "string"
+    },
+    "ActionTarget": {
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/TargetKind"
+        },
+        "selector": {
+          "type": "string"
+        },
+        "est_traffic_pct": {
+          "maximum": 100.0,
+          "minimum": 0.0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "kind",
+        "selector",
+        "est_traffic_pct"
+      ],
+      "title": "ActionTarget",
+      "type": "object"
+    },
+    "AlternateOrigin": {
+      "properties": {
+        "service": {
+          "type": "string"
+        },
+        "score": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "service",
+        "score"
+      ],
+      "title": "AlternateOrigin",
+      "type": "object"
+    },
+    "ApprovalRequestPayload": {
+      "properties": {
+        "type": {
+          "const": "approval_request",
+          "default": "approval_request",
+          "type": "string"
+        },
+        "decision_id": {
+          "type": "string"
+        },
+        "proposed_action": {
+          "$ref": "#/$defs/Action"
+        },
+        "timeout_s": {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "type",
+        "decision_id",
+        "proposed_action",
+        "timeout_s"
+      ],
+      "title": "ApprovalRequestPayload",
+      "type": "object"
+    },
+    "BlastRadius": {
+      "properties": {
+        "protected_cohorts_touched": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "max_pct_allowed": {
+          "maximum": 100.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        "gates_passed": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "protected_cohorts_touched",
+        "max_pct_allowed",
+        "gates_passed"
+      ],
+      "title": "BlastRadius",
+      "type": "object"
+    },
+    "CalendarPhase": {
+      "enum": [
+        "announce",
+        "ramp",
+        "start",
+        "peak",
+        "end"
+      ],
+      "title": "CalendarPhase",
+      "type": "string"
+    },
+    "CalendarRecord": {
+      "properties": {
+        "kind": {
+          "const": "calendar",
+          "default": "calendar",
+          "type": "string"
+        },
+        "ts": {
+          "type": "number"
+        },
+        "event_id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "phase": {
+          "$ref": "#/$defs/CalendarPhase"
+        },
+        "expected_multiplier": {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        "affects": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind",
+        "ts",
+        "event_id",
+        "title",
+        "phase",
+        "expected_multiplier",
+        "affects"
+      ],
+      "title": "CalendarRecord",
+      "type": "object"
+    },
+    "CauseClass": {
+      "description": "RCA cause classes; expected surges never reach RCA.",
+      "enum": [
+        "attack",
+        "operational_fault",
+        "code_fault",
+        "combination"
+      ],
+      "title": "CauseClass",
+      "type": "string"
+    },
+    "ClassProbability": {
+      "properties": {
+        "class": {
+          "$ref": "#/$defs/VerdictClass"
+        },
+        "p": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "class",
+        "p"
+      ],
+      "title": "ClassProbability",
+      "type": "object"
+    },
+    "ClockPayload": {
+      "properties": {
+        "type": {
+          "const": "clock",
+          "default": "clock",
+          "type": "string"
+        },
+        "speed": {
+          "enum": [
+            1,
+            10,
+            60
+          ],
+          "type": "integer"
+        },
+        "state": {
+          "$ref": "#/$defs/ClockState"
+        },
+        "sim_ts": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "type",
+        "speed",
+        "state",
+        "sim_ts"
+      ],
+      "title": "ClockPayload",
+      "type": "object"
+    },
+    "ClockState": {
+      "enum": [
+        "playing",
+        "paused",
+        "ended",
+        "loading"
+      ],
+      "title": "ClockState",
+      "type": "string"
+    },
+    "CodeFaultFinding": {
+      "properties": {
+        "commit": {
+          "type": "string"
+        },
+        "file": {
+          "type": "string"
+        },
+        "line": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "function": {
+          "type": "string"
+        },
+        "config_value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "mechanism": {
+          "type": "string"
+        },
+        "proposed_fix": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProposedFix"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "commit",
+        "file",
+        "line",
+        "function",
+        "config_value",
+        "mechanism",
+        "proposed_fix"
+      ],
+      "title": "CodeFaultFinding",
+      "type": "object"
+    },
+    "CodeFaultLabel": {
+      "properties": {
+        "commit": {
+          "type": "string"
+        },
+        "file": {
+          "type": "string"
+        },
+        "line": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "mechanism": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "commit",
+        "file",
+        "line",
+        "mechanism"
+      ],
+      "title": "CodeFaultLabel",
+      "type": "object"
+    },
+    "Cure": {
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/CureKind"
+        },
+        "justification": {
+          "type": "string"
+        },
+        "interim_infra_action": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "kind",
+        "justification",
+        "interim_infra_action"
+      ],
+      "title": "Cure",
+      "type": "object"
+    },
+    "CureKind": {
+      "enum": [
+        "code_fix",
+        "infra_action"
+      ],
+      "title": "CureKind",
+      "type": "string"
+    },
+    "Decision": {
+      "properties": {
+        "type": {
+          "const": "decision",
+          "default": "decision",
+          "type": "string"
+        },
+        "decision_id": {
+          "type": "string"
+        },
+        "incident_id": {
+          "type": "string"
+        },
+        "ts": {
+          "type": "number"
+        },
+        "decision": {
+          "$ref": "#/$defs/DecisionKind"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "evidence_ref": {
+          "type": "string"
+        },
+        "confidence": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        "human_gate": {
+          "$ref": "#/$defs/HumanGate"
+        }
+      },
+      "required": [
+        "type",
+        "decision_id",
+        "incident_id",
+        "ts",
+        "decision",
+        "reason",
+        "evidence_ref",
+        "confidence",
+        "human_gate"
+      ],
+      "title": "Decision",
+      "type": "object"
+    },
+    "DecisionKind": {
+      "enum": [
+        "suppress",
+        "alert",
+        "act"
+      ],
+      "title": "DecisionKind",
+      "type": "string"
+    },
+    "DecompFrame": {
+      "description": "Observed volume split into base + event + residual vs the expected band.",
+      "properties": {
+        "type": {
+          "const": "decomp",
+          "default": "decomp",
+          "type": "string"
+        },
+        "ts": {
+          "type": "number"
+        },
+        "service": {
+          "type": "string"
+        },
+        "signal": {
+          "$ref": "#/$defs/MetricName"
+        },
+        "observed": {
+          "type": "number"
+        },
+        "explained_base": {
+          "type": "number"
+        },
+        "explained_event": {
+          "type": "number"
+        },
+        "residual": {
+          "type": "number"
+        },
+        "band": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "type": "array"
+        },
+        "residual_score": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "type",
+        "ts",
+        "service",
+        "signal",
+        "observed",
+        "explained_base",
+        "explained_event",
+        "residual",
+        "band",
+        "residual_score"
+      ],
+      "title": "DecompFrame",
+      "type": "object"
+    },
+    "DeployRecord": {
+      "properties": {
+        "kind": {
+          "const": "deploy",
+          "default": "deploy",
+          "type": "string"
+        },
+        "ts": {
+          "type": "number"
+        },
+        "service": {
+          "type": "string"
+        },
+        "commit": {
+          "type": "string"
+        },
+        "author": {
+          "type": "string"
+        },
+        "files": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "ts",
+        "service",
+        "commit",
+        "author",
+        "files",
+        "summary"
+      ],
+      "title": "DeployRecord",
+      "type": "object"
+    },
+    "Direction": {
+      "enum": [
+        "up",
+        "down"
+      ],
+      "title": "Direction",
+      "type": "string"
+    },
+    "EvidenceItem": {
+      "description": "One scored reason line: a feature, where it sits vs baseline, and why\nthat matters for the verdict.",
+      "properties": {
+        "feature": {
+          "type": "string"
+        },
+        "value": {
+          "type": "number"
+        },
+        "baseline": {
+          "type": "number"
+        },
+        "direction": {
+          "$ref": "#/$defs/Direction"
+        },
+        "note": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "feature",
+        "value",
+        "baseline",
+        "direction",
+        "note"
+      ],
+      "title": "EvidenceItem",
+      "type": "object"
+    },
+    "GroundTruthIncident": {
+      "properties": {
+        "gt_id": {
+          "type": "string"
+        },
+        "class": {
+          "$ref": "#/$defs/IncidentClass"
+        },
+        "sub_type": {
+          "type": "string"
+        },
+        "window": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "type": "array"
+        },
+        "origin_service": {
+          "type": "string"
+        },
+        "inside_event": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "correct_decision": {
+          "$ref": "#/$defs/DecisionKind"
+        },
+        "reason_category": {
+          "$ref": "#/$defs/ReasonCategory"
+        },
+        "code_fault": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CodeFaultLabel"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "gt_id",
+        "class",
+        "sub_type",
+        "window",
+        "origin_service",
+        "inside_event",
+        "correct_decision",
+        "reason_category",
+        "code_fault"
+      ],
+      "title": "GroundTruthIncident",
+      "type": "object"
+    },
+    "GroundTruthLabels": {
+      "description": "Scoring-side ground truth; the argus runtime must never read this\n(labels-isolation lint, invariant I7).",
+      "properties": {
+        "contract": {
+          "type": "string"
+        },
+        "seed": {
+          "type": "integer"
+        },
+        "incidents": {
+          "items": {
+            "$ref": "#/$defs/GroundTruthIncident"
+          },
+          "type": "array"
+        },
+        "timestep_labels_file": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "contract",
+        "seed",
+        "incidents",
+        "timestep_labels_file"
+      ],
+      "title": "GroundTruthLabels",
+      "type": "object"
+    },
+    "HumanGate": {
+      "properties": {
+        "required": {
+          "type": "boolean"
+        },
+        "approved_by": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "approved_ts": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "required",
+        "approved_by",
+        "approved_ts"
+      ],
+      "title": "HumanGate",
+      "type": "object"
+    },
+    "Incident": {
+      "properties": {
+        "type": {
+          "const": "incident",
+          "default": "incident",
+          "type": "string"
+        },
+        "incident_id": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/IncidentStatus"
+        },
+        "first_ts": {
+          "type": "number"
+        },
+        "last_ts": {
+          "type": "number"
+        },
+        "symptoms": {
+          "items": {
+            "$ref": "#/$defs/Symptom"
+          },
+          "minItems": 1,
+          "type": "array"
+        }
+      },
+      "required": [
+        "type",
+        "incident_id",
+        "status",
+        "first_ts",
+        "last_ts",
+        "symptoms"
+      ],
+      "title": "Incident",
+      "type": "object"
+    },
+    "IncidentClass": {
+      "description": "Ground-truth incident class: verdict classes plus the combination marker.\n\n``expected_surge`` entries exist so suppress decisions are scorable\nagainst a labeled window.",
+      "enum": [
+        "expected_surge",
+        "attack",
+        "operational_fault",
+        "code_fault",
+        "combination"
+      ],
+      "title": "IncidentClass",
+      "type": "string"
+    },
+    "IncidentStatus": {
+      "enum": [
+        "open",
+        "updated",
+        "resolved"
+      ],
+      "title": "IncidentStatus",
+      "type": "string"
+    },
+    "LogRecord": {
+      "properties": {
+        "kind": {
+          "const": "log",
+          "default": "log",
+          "type": "string"
+        },
+        "ts": {
+          "type": "number"
+        },
+        "service": {
+          "type": "string"
+        },
+        "level": {
+          "type": "string"
+        },
+        "template_id": {
+          "type": "string"
+        },
+        "msg": {
+          "type": "string"
+        },
+        "count": {
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "kind",
+        "ts",
+        "service",
+        "level",
+        "template_id",
+        "msg",
+        "count"
+      ],
+      "title": "LogRecord",
+      "type": "object"
+    },
+    "MetricName": {
+      "description": "Per-service metric signals every scenario emits at each tick.",
+      "enum": [
+        "rps",
+        "err_rate",
+        "p50_ms",
+        "p95_ms",
+        "p99_ms",
+        "cpu_pct",
+        "mem_pct",
+        "conn_active",
+        "queue_depth"
+      ],
+      "title": "MetricName",
+      "type": "string"
+    },
+    "MetricRecord": {
+      "properties": {
+        "kind": {
+          "const": "metric",
+          "default": "metric",
+          "type": "string"
+        },
+        "ts": {
+          "type": "number"
+        },
+        "service": {
+          "type": "string"
+        },
+        "name": {
+          "$ref": "#/$defs/MetricName"
+        },
+        "value": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "kind",
+        "ts",
+        "service",
+        "name",
+        "value"
+      ],
+      "title": "MetricRecord",
+      "type": "object"
+    },
+    "MttrRecord": {
+      "description": "The hours→seconds claim, per incident, with the timestamps that prove it.",
+      "properties": {
+        "type": {
+          "const": "mttr",
+          "default": "mttr",
+          "type": "string"
+        },
+        "incident_id": {
+          "type": "string"
+        },
+        "onset_ts": {
+          "type": "number"
+        },
+        "detected_ts": {
+          "type": "number"
+        },
+        "root_caused_ts": {
+          "type": "number"
+        },
+        "mitigated_ts": {
+          "type": "number"
+        },
+        "verified_ts": {
+          "type": "number"
+        },
+        "manual_baseline_s": {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        "autonomous_s": {
+          "minimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "type",
+        "incident_id",
+        "onset_ts",
+        "detected_ts",
+        "root_caused_ts",
+        "mitigated_ts",
+        "verified_ts",
+        "manual_baseline_s",
+        "autonomous_s"
+      ],
+      "title": "MttrRecord",
+      "type": "object"
+    },
+    "NetRecord": {
+      "description": "Load-invariant network behavior features — the volume-vs-behavior axis.",
+      "properties": {
+        "kind": {
+          "const": "net",
+          "default": "net",
+          "type": "string"
+        },
+        "ts": {
+          "type": "number"
+        },
+        "service": {
+          "type": "string"
+        },
+        "uniq_ip_entropy": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "syn_ack_ratio": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "auth_fail_ratio": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        "ja3_novelty": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        "geo_top1_share": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "kind",
+        "ts",
+        "service",
+        "uniq_ip_entropy",
+        "syn_ack_ratio",
+        "auth_fail_ratio",
+        "ja3_novelty",
+        "geo_top1_share"
+      ],
+      "title": "NetRecord",
+      "type": "object"
+    },
+    "ProposedFix": {
+      "properties": {
+        "summary": {
+          "type": "string"
+        },
+        "diff": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "summary",
+        "diff"
+      ],
+      "title": "ProposedFix",
+      "type": "object"
+    },
+    "RcaOrigin": {
+      "description": "Exactly one origin; alternates are ranked, never co-equal (invariant I8).",
+      "properties": {
+        "service": {
+          "type": "string"
+        },
+        "onset_ts": {
+          "type": "number"
+        },
+        "alternates": {
+          "items": {
+            "$ref": "#/$defs/AlternateOrigin"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "service",
+        "onset_ts",
+        "alternates"
+      ],
+      "title": "RcaOrigin",
+      "type": "object"
+    },
+    "RcaResult": {
+      "properties": {
+        "type": {
+          "const": "rca",
+          "default": "rca",
+          "type": "string"
+        },
+        "incident_id": {
+          "type": "string"
+        },
+        "origin": {
+          "$ref": "#/$defs/RcaOrigin"
+        },
+        "cause_class": {
+          "$ref": "#/$defs/CauseClass"
+        },
+        "collapse_trace": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "code_fault": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CodeFaultFinding"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "cure": {
+          "$ref": "#/$defs/Cure"
+        },
+        "confidence": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "type",
+        "incident_id",
+        "origin",
+        "cause_class",
+        "collapse_trace",
+        "code_fault",
+        "cure",
+        "confidence"
+      ],
+      "title": "RcaResult",
+      "type": "object"
+    },
+    "ReasonCategory": {
+      "description": "Scored against verdict evidence themes (right action, right reason).",
+      "enum": [
+        "behavioral_deformation",
+        "envelope_explained",
+        "deploy_correlated_cascade",
+        "saturation_no_deploy",
+        "combination_split"
+      ],
+      "title": "ReasonCategory",
+      "type": "string"
+    },
+    "Rollback": {
+      "properties": {
+        "type": {
+          "const": "rollback",
+          "default": "rollback",
+          "type": "string"
+        },
+        "rollback_id": {
+          "type": "string"
+        },
+        "action_id": {
+          "type": "string"
+        },
+        "ts": {
+          "type": "number"
+        },
+        "trigger": {
+          "$ref": "#/$defs/RollbackTrigger"
+        },
+        "cause": {
+          "type": "string"
+        },
+        "reverted": {
+          "type": "boolean"
+        },
+        "verification": {
+          "$ref": "#/$defs/RollbackVerification"
+        }
+      },
+      "required": [
+        "type",
+        "rollback_id",
+        "action_id",
+        "ts",
+        "trigger",
+        "cause",
+        "reverted",
+        "verification"
+      ],
+      "title": "Rollback",
+      "type": "object"
+    },
+    "RollbackTrigger": {
+      "enum": [
+        "auto",
+        "human"
+      ],
+      "title": "RollbackTrigger",
+      "type": "string"
+    },
+    "RollbackVerification": {
+      "description": "Restoration proof: which signals were checked and when.",
+      "properties": {
+        "users_restored": {
+          "type": "boolean"
+        },
+        "checked_signals": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "verified_ts": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "users_restored",
+        "checked_signals",
+        "verified_ts"
+      ],
+      "title": "RollbackVerification",
+      "type": "object"
+    },
+    "ScenarioHeader": {
+      "description": "First line of a scenario file: everything the replayer needs to run it.",
+      "properties": {
+        "kind": {
+          "const": "header",
+          "default": "header",
+          "type": "string"
+        },
+        "contract": {
+          "type": "string"
+        },
+        "seed": {
+          "type": "integer"
+        },
+        "profile": {
+          "type": "string"
+        },
+        "start_ts": {
+          "type": "number"
+        },
+        "scored_from_ts": {
+          "type": "number"
+        },
+        "end_ts": {
+          "type": "number"
+        },
+        "resolution_s": {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        "warmup_resolution_s": {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        "services": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "demo_app_manifest": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "contract",
+        "seed",
+        "profile",
+        "start_ts",
+        "scored_from_ts",
+        "end_ts",
+        "resolution_s",
+        "warmup_resolution_s",
+        "services",
+        "demo_app_manifest"
+      ],
+      "title": "ScenarioHeader",
+      "type": "object"
+    },
+    "Symptom": {
+      "properties": {
+        "service": {
+          "type": "string"
+        },
+        "signal": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/SymptomKind"
+        },
+        "onset_ts": {
+          "type": "number"
+        },
+        "score": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "service",
+        "signal",
+        "kind",
+        "onset_ts",
+        "score"
+      ],
+      "title": "Symptom",
+      "type": "object"
+    },
+    "SymptomKind": {
+      "enum": [
+        "residual_exceed",
+        "ratio_deform",
+        "log_burst",
+        "edge_degraded",
+        "saturation",
+        "deploy_marker"
+      ],
+      "title": "SymptomKind",
+      "type": "string"
+    },
+    "TargetKind": {
+      "description": "What an action selector addresses: a traffic cohort (rate_limit /\nthrottle / isolate), a service (scale / restart) or a call edge (reroute).",
+      "enum": [
+        "cohort",
+        "service",
+        "edge"
+      ],
+      "title": "TargetKind",
+      "type": "string"
+    },
+    "TraceRecord": {
+      "description": "Aggregated caller→callee edge health for one tick.",
+      "properties": {
+        "kind": {
+          "const": "trace",
+          "default": "trace",
+          "type": "string"
+        },
+        "ts": {
+          "type": "number"
+        },
+        "caller": {
+          "type": "string"
+        },
+        "callee": {
+          "type": "string"
+        },
+        "rps": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "err_rate": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        "p99_ms": {
+          "minimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "kind",
+        "ts",
+        "caller",
+        "callee",
+        "rps",
+        "err_rate",
+        "p99_ms"
+      ],
+      "title": "TraceRecord",
+      "type": "object"
+    },
+    "Verdict": {
+      "properties": {
+        "type": {
+          "const": "verdict",
+          "default": "verdict",
+          "type": "string"
+        },
+        "incident_id": {
+          "type": "string"
+        },
+        "classes": {
+          "items": {
+            "$ref": "#/$defs/ClassProbability"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "combination": {
+          "default": false,
+          "type": "boolean"
+        },
+        "confidence": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        "evidence": {
+          "items": {
+            "$ref": "#/$defs/EvidenceItem"
+          },
+          "minItems": 1,
+          "type": "array"
+        }
+      },
+      "required": [
+        "type",
+        "incident_id",
+        "classes",
+        "combination",
+        "confidence",
+        "evidence"
+      ],
+      "title": "Verdict",
+      "type": "object"
+    },
+    "VerdictClass": {
+      "description": "The four base classes a verdict distributes probability over.\n\nA combined attack+fault situation is expressed by splitting incidents and\nsetting ``Verdict.combination``, not by a fifth class.",
+      "enum": [
+        "expected_surge",
+        "attack",
+        "operational_fault",
+        "code_fault"
+      ],
+      "title": "VerdictClass",
+      "type": "string"
+    },
+    "WsEnvelope": {
+      "description": "Every stream message: ordered seq (since_seq catch-up) + dual clocks.",
+      "properties": {
+        "seq": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "wall_ts": {
+          "type": "number"
+        },
+        "sim_ts": {
+          "type": "number"
+        },
+        "payload": {
+          "anyOf": [
+            {
+              "discriminator": {
+                "mapping": {
+                  "action": "#/$defs/Action",
+                  "approval_request": "#/$defs/ApprovalRequestPayload",
+                  "clock": "#/$defs/ClockPayload",
+                  "decision": "#/$defs/Decision",
+                  "decomp": "#/$defs/DecompFrame",
+                  "incident": "#/$defs/Incident",
+                  "mttr": "#/$defs/MttrRecord",
+                  "rca": "#/$defs/RcaResult",
+                  "rollback": "#/$defs/Rollback",
+                  "verdict": "#/$defs/Verdict"
+                },
+                "propertyName": "type"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/DecompFrame"
+                },
+                {
+                  "$ref": "#/$defs/Incident"
+                },
+                {
+                  "$ref": "#/$defs/Verdict"
+                },
+                {
+                  "$ref": "#/$defs/RcaResult"
+                },
+                {
+                  "$ref": "#/$defs/Decision"
+                },
+                {
+                  "$ref": "#/$defs/Action"
+                },
+                {
+                  "$ref": "#/$defs/Rollback"
+                },
+                {
+                  "$ref": "#/$defs/MttrRecord"
+                },
+                {
+                  "$ref": "#/$defs/ClockPayload"
+                },
+                {
+                  "$ref": "#/$defs/ApprovalRequestPayload"
+                }
+              ]
+            },
+            {
+              "discriminator": {
+                "mapping": {
+                  "calendar": "#/$defs/CalendarRecord",
+                  "deploy": "#/$defs/DeployRecord",
+                  "log": "#/$defs/LogRecord",
+                  "metric": "#/$defs/MetricRecord",
+                  "net": "#/$defs/NetRecord",
+                  "trace": "#/$defs/TraceRecord"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/MetricRecord"
+                },
+                {
+                  "$ref": "#/$defs/NetRecord"
+                },
+                {
+                  "$ref": "#/$defs/LogRecord"
+                },
+                {
+                  "$ref": "#/$defs/TraceRecord"
+                },
+                {
+                  "$ref": "#/$defs/CalendarRecord"
+                },
+                {
+                  "$ref": "#/$defs/DeployRecord"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "required": [
+        "seq",
+        "wall_ts",
+        "sim_ts",
+        "payload"
+      ],
+      "title": "WsEnvelope",
+      "type": "object"
+    }
+  }
+}

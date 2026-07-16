@@ -19,6 +19,7 @@ Wire conventions (shared with the dashboard):
 
 from collections.abc import Sequence
 from enum import StrEnum
+from pathlib import Path
 from typing import Annotated, Any, Literal, Union
 
 from pydantic import (
@@ -75,6 +76,10 @@ class ContractModel(BaseModel):
         validate_by_name=True,
         validate_by_alias=True,
         serialize_by_alias=True,
+        # Dumps always include defaulted fields (kind/type discriminators!),
+        # so the serialization schema — and the generated TS — marks them
+        # required; TS union narrowing depends on non-optional discriminators.
+        json_schema_serialization_defaults_required=True,
     )
 
 
@@ -730,3 +735,95 @@ CONTRACT_MODELS: dict[str, type[BaseModel]] = {
     "mttr_record": MttrRecord,
     "ws_envelope": WsEnvelope,
 }
+
+# The dashboard's generated TS types are built from this file; regenerate
+# with `python -m argus.contracts export` then `npm run gen:contracts`.
+DEFAULT_SCHEMA_PATH = (
+    Path(__file__).resolve().parents[2] / "dashboard" / "src" / "contracts" / "schema.json"
+)
+
+
+_SUBSCHEMA_LIST_KEYS = ("anyOf", "oneOf", "allOf", "prefixItems")
+_SUBSCHEMA_MAP_KEYS = ("properties", "$defs")
+_SUBSCHEMA_CHILD_KEYS = ("items", "additionalProperties", "propertyNames")
+
+
+def _strip_field_titles(schema: dict[str, Any], keep_title: bool = False) -> None:
+    """Drop per-field ``title`` metadata in place, keeping definition names.
+
+    Pydantic titles every property; json-schema-to-typescript then emits a
+    noisy alias per field (``Ts1``, ``Kind2``…). Only $defs entries keep
+    their title — those become the generated type names. Traversal is
+    keyword-aware so a *property named* "title" (calendar records have one)
+    is never touched.
+    """
+    if not keep_title:
+        schema.pop("title", None)
+    for key in _SUBSCHEMA_LIST_KEYS:
+        for child in schema.get(key, []):
+            if isinstance(child, dict):
+                _strip_field_titles(child)
+    for key in _SUBSCHEMA_MAP_KEYS:
+        children = schema.get(key)
+        if isinstance(children, dict):
+            for child in children.values():
+                if isinstance(child, dict):
+                    _strip_field_titles(child, keep_title=key == "$defs")
+    for key in _SUBSCHEMA_CHILD_KEYS:
+        child = schema.get(key)
+        if isinstance(child, dict):
+            _strip_field_titles(child)
+
+
+def export_json_schema() -> dict[str, Any]:
+    """Bundle every contract model into one JSON schema with shared $defs.
+
+    Each registry entry becomes a root property referencing its model, so
+    schema consumers (json-schema-to-typescript) emit a named type per
+    section and every transitive definition.
+    """
+    from pydantic.json_schema import models_json_schema
+
+    # Serialization mode: the dashboard types describe what the engine emits.
+    refs, bundle = models_json_schema(
+        [(model, "serialization") for model in CONTRACT_MODELS.values()],
+        ref_template="#/$defs/{model}",
+    )
+    defs = bundle["$defs"]
+    for definition in defs.values():
+        _strip_field_titles(definition, keep_title=True)
+    return {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "ArgusContracts",
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            name: refs[(model, "serialization")] for name, model in CONTRACT_MODELS.items()
+        },
+        "$defs": defs,
+    }
+
+
+def _main(argv: Sequence[str]) -> int:
+    import argparse
+    import json
+
+    parser = argparse.ArgumentParser(
+        prog="python -m argus.contracts", description="Contract tooling."
+    )
+    commands = parser.add_subparsers(dest="command", required=True)
+    export = commands.add_parser("export", help="write the JSON-schema bundle for the dashboard")
+    export.add_argument("--out", type=Path, default=DEFAULT_SCHEMA_PATH)
+    args = parser.parse_args(argv)
+
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    schema = export_json_schema()
+    args.out.write_text(json.dumps(schema, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    print(f"wrote {args.out}")
+    return 0
+
+
+if __name__ == "__main__":
+    import sys
+
+    raise SystemExit(_main(sys.argv[1:]))

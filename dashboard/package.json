@@ -9,7 +9,8 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "typecheck": "tsc -b",
-    "test": "vitest run"
+    "test": "vitest run",
+    "gen:contracts": "json2ts -i src/contracts/schema.json -o src/contracts/types.ts --additionalProperties false --bannerComment \"/* Generated from schema.json (python -m argus.contracts export) — do not edit. */\""
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.2",
@@ -24,6 +25,7 @@
     "@types/react-dom": "^18.3.7",
     "@vitejs/plugin-react": "^6.0.3",
     "jsdom": "^29.1.1",
+    "json-schema-to-typescript": "^15.0.4",
     "oxlint": "^1.71.0",
     "typescript": "~6.0.2",
     "vite": "^8.1.1",
