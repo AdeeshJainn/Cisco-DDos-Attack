@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 import subprocess
 
+import pytest
 from argus.contracts import (
     DeployRecord,
     Incident,
@@ -15,6 +16,7 @@ from argus.contracts import (
 )
 from argus.rca.collapse import analyze
 from argus.rca.incidents import IncidentBuilder
+from argus.rca.localize import localize
 from argus.rca.signatures import fault_signatures
 from argus.scenario.faults import DEFAULT_MANIFEST_LOCK_PATH, load_fault_catalog
 from argus.verdict.rules import classify
@@ -65,6 +67,29 @@ def test_incident_builder_clusters_adjacent_services_and_resolves():
 
 def test_signature_library_tracks_every_real_fault():
     assert set(fault_signatures()) == set(load_fault_catalog())
+
+
+@pytest.mark.parametrize("fault_id", sorted(load_fault_catalog()))
+def test_every_fault_deploy_localizes_to_its_real_file_and_line(fault_id: str):
+    entry = load_fault_catalog()[fault_id]
+    deploy = DeployRecord(
+        ts=100.0,
+        service=entry.service,
+        commit=entry.commit,
+        author=entry.author,
+        files=list(entry.files),
+        summary=entry.summary,
+    )
+    finding = localize(
+        service=entry.service,
+        onset_ts=200.0,
+        deploys=[deploy],
+    )
+
+    assert finding.commit == entry.commit
+    assert finding.file == entry.file
+    assert finding.line == entry.line
+    assert finding.proposed_fix is not None
 
 
 def test_code_fault_collapses_to_deployed_caller_and_localizes_real_line():
