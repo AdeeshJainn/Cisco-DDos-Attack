@@ -150,6 +150,12 @@ class PolicyConfig:
 class ReplayConfig:
     """Replay clock and stream pacing."""
 
+    # Retain enough ordered messages for dashboard reconnects without allowing
+    # an unbounded slow-consumer backlog.
+    stream_buffer_size: int = 20_000
+    # Cooperative pause polling stays responsive while avoiding a busy loop.
+    pause_poll_s: float = 0.02
+
 
 @dataclass(frozen=True)
 class Config:

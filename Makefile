@@ -31,7 +31,8 @@ demo:
 	@echo "make demo: lands in phase 7 (dashboard over the replay api)"; exit 1
 
 replay:
-	@echo "make replay: lands in phase 3 (scenario engine and replay clock)"; exit 1
+	ARGUS_PROFILE=$${PROFILE:-match_night} ARGUS_SEED=$${SEED:-424242} ARGUS_SPEED=$${SPEED:-60} \
+		$(UV) run --project engine uvicorn argus.api.app:app --host 127.0.0.1 --port $${PORT:-8000}
 
 score:
 	@echo "make score: lands in phase 4 (scoring harness)"; exit 1
