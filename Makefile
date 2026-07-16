@@ -10,7 +10,11 @@ NPM ?= npm
 setup:
 	cd engine && $(UV) sync
 	cd dashboard && $(NPM) ci
-	$(UV) run --project engine pre-commit install
+	@if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then \
+		$(UV) run --project engine pre-commit install; \
+	else \
+		echo "source archive: skipping outer-repository pre-commit hook"; \
+	fi
 	$(UV) run --project engine python scripts/build_demo_app.py
 	@echo "setup complete: run 'make demo' and open http://127.0.0.1:8100"
 
