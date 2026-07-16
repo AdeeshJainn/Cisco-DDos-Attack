@@ -69,11 +69,15 @@ The scenario engine also accepts arbitrary integer seeds:
 ```sh
 make seeds N=1 START_SEED=9001 PROFILE=combo_night
 make replay PROFILE=match_night SEED=9001 SPEED=60
+make analyze PROFILE=combo_night SEED=9001
 ```
 
 Available profiles are `quiet_day`, `match_night`, `cascade_night`, and
 `combo_night`. Generated telemetry and labels are disposable artifacts under
 `scenarios/` or `var/scenarios/`; they are intentionally not committed.
+`make analyze` runs the observable-to-decision pipeline directly and prints
+contract-valid incidents, verdicts, reasons, RCA, decisions, and actions. The
+runtime does not import or read ground-truth labels.
 
 To score a prediction file against generated ground truth:
 
@@ -88,6 +92,28 @@ reason and evidence reference. `make test` checks contract validity, label
 isolation, deterministic generation, fresh-seed behavior, one-origin RCA,
 real-history line localization, protected cohorts, rollback restoration, and
 dashboard types/tests.
+
+## Golden replay regression
+
+The four canonical profiles have reviewed decision transcripts in
+`tests/golden/fixtures/`. They freeze the semantic result of the complete
+observable → verdict → RCA → policy path:
+
+```sh
+uv run --project engine python -m scoring.golden
+```
+
+The checker allows detector timing to move by at most 30 simulated seconds and
+confidence by at most 0.10. It does **not** tolerate changes to the incident
+count, class, origin, decision, stated reason, evidence reference, action rung,
+or code finding. If an intentional improvement changes those semantics:
+
+```sh
+make regen-golden
+git diff -- tests/golden/fixtures
+```
+
+Review that diff as a behavior change before committing it.
 
 ## Honesty note
 

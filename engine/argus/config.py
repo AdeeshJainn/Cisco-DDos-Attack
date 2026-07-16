@@ -221,6 +221,14 @@ class PolicyConfig:
     restoration_check_s: float = 300.0
     # A ten-percent protected-user regression triggers auto rollback.
     collateral_tolerance_fraction: float = 0.10
+    # Each traffic rung removes a progressively larger share of the targeted
+    # anomalous contribution; legitimate base/event load is never multiplied.
+    rate_limit_efficacy: float = 0.55
+    throttle_efficacy: float = 0.78
+    isolate_efficacy: float = 0.96
+    # MTTR compares the autonomous lifecycle with a documented four-hour
+    # manual investigation baseline.
+    manual_baseline_s: float = 14_400.0
 
 
 @dataclass(frozen=True)
@@ -243,6 +251,10 @@ class ScoringConfig:
     incident_iou_threshold: float = 0.10
     # Official rubric: right action with wrong reason earns partial credit.
     wrong_reason_partial_credit: float = 0.50
+    # Golden transcripts tolerate detector timing movement within one
+    # sustained-gate window and modest confidence recalibration.
+    golden_time_tolerance_s: float = 30.0
+    golden_confidence_tolerance: float = 0.10
 
 
 @dataclass(frozen=True)

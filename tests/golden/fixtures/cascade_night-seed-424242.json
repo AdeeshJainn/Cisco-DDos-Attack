@@ -1,0 +1,27 @@
+{
+  "golden_version": 1,
+  "profile": "cascade_night",
+  "seed": 424242,
+  "transcript": [
+    {
+      "action_rung": null,
+      "cause_class": "code_fault",
+      "code_fault": {
+        "commit": "45d03f4c223f73f50eefac8d010b9f533cc4c69c",
+        "file": "payment_svc/retry.py",
+        "line": 18,
+        "mechanism": "unbounded retry no backoff"
+      },
+      "decision": "alert",
+      "decision_reason": "alert because code_fault is the leading cause at confidence 0.90: a recent deploy precedes the symptom cascade; resource pressure indicates an internal capacity constraint; dependency-edge latency or errors rose above baseline",
+      "evidence_ref": "inc-fault-01/verdict",
+      "incident_id": "inc-fault-01",
+      "last_offset_s": 70199.0,
+      "onset_offset_s": 64801.0,
+      "origin_service": "payment-svc",
+      "rca_confidence": 0.46491124770926706,
+      "verdict_class": "code_fault",
+      "verdict_confidence": 0.896875
+    }
+  ]
+}

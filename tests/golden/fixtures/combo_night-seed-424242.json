@@ -1,0 +1,57 @@
+{
+  "golden_version": 1,
+  "profile": "combo_night",
+  "seed": 424242,
+  "transcript": [
+    {
+      "action_rung": "rate_limit",
+      "cause_class": "attack",
+      "code_fault": null,
+      "decision": "act",
+      "decision_reason": "act because attack is the leading cause at confidence 0.86: load-invariant client behavior moved outside its robust baseline; load-invariant client behavior moved outside its robust baseline; load-invariant client behavior moved outside its robust baseline",
+      "evidence_ref": "inc-attack-auth-svc/verdict",
+      "incident_id": "inc-attack-auth-svc",
+      "last_offset_s": 71990.0,
+      "onset_offset_s": 68407.0,
+      "origin_service": "auth-svc",
+      "rca_confidence": 0.44999999999999996,
+      "verdict_class": "attack",
+      "verdict_confidence": 0.8574925250823356
+    },
+    {
+      "action_rung": null,
+      "cause_class": "code_fault",
+      "code_fault": {
+        "commit": "45d03f4c223f73f50eefac8d010b9f533cc4c69c",
+        "file": "payment_svc/retry.py",
+        "line": 18,
+        "mechanism": "unbounded retry no backoff"
+      },
+      "decision": "alert",
+      "decision_reason": "alert because code_fault is the leading cause at confidence 0.90: a recent deploy precedes the symptom cascade; resource pressure indicates an internal capacity constraint; dependency-edge latency or errors rose above baseline",
+      "evidence_ref": "inc-fault-01/verdict",
+      "incident_id": "inc-fault-01",
+      "last_offset_s": 70199.0,
+      "onset_offset_s": 64801.0,
+      "origin_service": "payment-svc",
+      "rca_confidence": 0.46491124770926706,
+      "verdict_class": "code_fault",
+      "verdict_confidence": 0.896875
+    },
+    {
+      "action_rung": "scale_out",
+      "cause_class": "operational_fault",
+      "code_fault": null,
+      "decision": "act",
+      "decision_reason": "act because operational_fault is the leading cause at confidence 0.81: resource pressure indicates an internal capacity constraint; an error template burst corroborates service degradation",
+      "evidence_ref": "inc-fault-02/verdict",
+      "incident_id": "inc-fault-02",
+      "last_offset_s": 82319.0,
+      "onset_offset_s": 62040.0,
+      "origin_service": "catalog-svc",
+      "rca_confidence": 0.44999999999999996,
+      "verdict_class": "operational_fault",
+      "verdict_confidence": 0.8125000000000001
+    }
+  ]
+}

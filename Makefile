@@ -5,7 +5,7 @@
 UV ?= uv
 NPM ?= npm
 
-.PHONY: setup test dev demo replay score seeds regen-golden
+.PHONY: setup test dev demo replay analyze score seeds regen-golden
 
 setup:
 	cd engine && $(UV) sync
@@ -35,6 +35,9 @@ replay:
 	ARGUS_PROFILE=$${PROFILE:-match_night} ARGUS_SEED=$${SEED:-424242} ARGUS_SPEED=$${SPEED:-60} \
 		$(UV) run --project engine uvicorn argus.api.app:app --host 127.0.0.1 --port $${PORT:-8000}
 
+analyze:
+	$(UV) run --project engine python -m argus.pipeline --profile $${PROFILE:-combo_night} --seed $${SEED:-424242}
+
 score:
 	$(UV) run --project engine python -m scoring.harness --labels "$${LABELS:?set LABELS=path}" --predictions "$${PREDICTIONS:?set PREDICTIONS=path}"
 
@@ -42,4 +45,4 @@ seeds:
 	$(UV) run --project engine python scripts/gen_scenarios.py --count $${N:-1} --start-seed $${START_SEED:-1} --profile $${PROFILE:-match_night}
 
 regen-golden:
-	@echo "make regen-golden: lands in phase 8 (golden replay suite)"; exit 1
+	$(UV) run --project engine python -m scoring.golden --write

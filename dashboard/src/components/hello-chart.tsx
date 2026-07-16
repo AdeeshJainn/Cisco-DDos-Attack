@@ -7,10 +7,17 @@ interface Timeline {
   base: number[];
   event: number[];
   residual: number[];
+  mitigated_residual: number[];
   observed: number[];
 }
 
-export function DecompositionChart({ timeline }: { timeline: Timeline }) {
+export function DecompositionChart({
+  timeline,
+  cursor,
+}: {
+  timeline: Timeline;
+  cursor: number;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   const theme = useTheme();
 
@@ -19,6 +26,8 @@ export function DecompositionChart({ timeline }: { timeline: Timeline }) {
     if (!el) return;
     const tokens = getComputedStyle(el);
     const chart = echarts.init(el);
+    const visible = (values: number[]) =>
+      values.map((value, index) => (index <= cursor ? value : null));
     chart.setOption({
       animationDuration: 700,
       backgroundColor: "transparent",
@@ -50,7 +59,7 @@ export function DecompositionChart({ timeline }: { timeline: Timeline }) {
           name: "base",
           type: "line",
           stack: "expected",
-          data: timeline.base,
+          data: visible(timeline.base),
           smooth: true,
           showSymbol: false,
           lineStyle: {
@@ -63,7 +72,7 @@ export function DecompositionChart({ timeline }: { timeline: Timeline }) {
           name: "event",
           type: "line",
           stack: "expected",
-          data: timeline.event,
+          data: visible(timeline.event),
           smooth: true,
           showSymbol: false,
           lineStyle: {
@@ -75,20 +84,32 @@ export function DecompositionChart({ timeline }: { timeline: Timeline }) {
         {
           name: "residual",
           type: "line",
-          stack: "expected",
-          data: timeline.residual,
+          data: visible(timeline.residual),
           smooth: true,
           showSymbol: false,
           lineStyle: {
             color: tokens.getPropertyValue("--decomp-residual").trim(),
             width: 2,
+            type: "dashed",
           },
-          areaStyle: { opacity: 0.14 },
+        },
+        {
+          name: "after action",
+          type: "line",
+          stack: "expected",
+          data: visible(timeline.mitigated_residual),
+          smooth: true,
+          showSymbol: false,
+          lineStyle: {
+            color: tokens.getPropertyValue("--success").trim(),
+            width: 2,
+          },
+          areaStyle: { opacity: 0.12 },
         },
         {
           name: "observed",
           type: "line",
-          data: timeline.observed,
+          data: visible(timeline.observed),
           smooth: true,
           showSymbol: false,
           lineStyle: {
@@ -105,7 +126,7 @@ export function DecompositionChart({ timeline }: { timeline: Timeline }) {
       window.removeEventListener("resize", onResize);
       chart.dispose();
     };
-  }, [theme, timeline]);
+  }, [cursor, theme, timeline]);
 
   return <div ref={ref} className="h-72 w-full" aria-label="Surge decomposition chart" />;
 }

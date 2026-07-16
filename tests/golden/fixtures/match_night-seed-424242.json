@@ -1,0 +1,22 @@
+{
+  "golden_version": 1,
+  "profile": "match_night",
+  "seed": 424242,
+  "transcript": [
+    {
+      "action_rung": "rate_limit",
+      "cause_class": "attack",
+      "code_fault": null,
+      "decision": "act",
+      "decision_reason": "act because attack is the leading cause at confidence 0.86: load-invariant client behavior moved outside its robust baseline; load-invariant client behavior moved outside its robust baseline; load-invariant client behavior moved outside its robust baseline",
+      "evidence_ref": "inc-attack-auth-svc/verdict",
+      "incident_id": "inc-attack-auth-svc",
+      "last_offset_s": 71990.0,
+      "onset_offset_s": 68407.0,
+      "origin_service": "auth-svc",
+      "rca_confidence": 0.44999999999999996,
+      "verdict_class": "attack",
+      "verdict_confidence": 0.8574925250823356
+    }
+  ]
+}

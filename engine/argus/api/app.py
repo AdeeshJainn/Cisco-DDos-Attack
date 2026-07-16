@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 import subprocess
 from contextlib import asynccontextmanager
+from dataclasses import asdict
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
@@ -17,6 +19,8 @@ from argus.api.replay import ReplayController
 from argus.contracts import MetricName
 from argus.demo import build_demo_snapshot
 from argus.detection.residual import DecompStore
+from argus.pipeline import analyze_profile
+from argus.policy.approvals import ApprovalStore, ApprovalVerdict
 from argus.scenario.profiles import PROFILE_BUILDERS
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -44,6 +48,11 @@ class ReplaySeekRequest(BaseModel):
     sim_ts: float
 
 
+class ApprovalRequest(BaseModel):
+    verdict: ApprovalVerdict
+    by: str
+
+
 def _git_sha() -> str:
     configured = os.getenv("ARGUS_GIT_SHA")
     if configured:
@@ -64,6 +73,7 @@ def create_app(
 ) -> FastAPI:
     replay = controller or ReplayController()
     decompositions = decomp_store or DecompStore()
+    approvals = ApprovalStore()
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
@@ -82,6 +92,7 @@ def create_app(
     app = FastAPI(title="Argus", version="0.1.0", lifespan=lifespan)
     app.state.replay = replay
     app.state.decomp_store = decompositions
+    app.state.approvals = approvals
 
     @app.get("/api/health")
     async def health():
@@ -156,6 +167,17 @@ def create_app(
     async def demo():
         return build_demo_snapshot()
 
+    @app.get("/api/analyze")
+    async def analyze_seed(profile: str = "combo_night", seed: int = 424242):
+        if profile not in PROFILE_BUILDERS:
+            raise HTTPException(status_code=422, detail=f"unknown profile: {profile}")
+        findings = await asyncio.to_thread(
+            analyze_profile,
+            profile=profile,
+            seed=seed,
+        )
+        return [finding.model_dump() for finding in findings]
+
     @app.get("/api/incidents")
     async def incidents():
         return [item["incident"] for item in build_demo_snapshot()["incidents"]]
@@ -173,6 +195,46 @@ def create_app(
             if item["incident"]["incident_id"] == incident_id and "report" in item:
                 return item["report"]
         raise HTTPException(status_code=404, detail=f"no report for incident: {incident_id}")
+
+    @app.get("/api/audit/actions")
+    async def audit_actions(incident_id: str | None = None):
+        rows = build_demo_snapshot()["audit"]
+        if incident_id is None:
+            return rows
+        return [row for row in rows if row.get("incident_id") == incident_id]
+
+    @app.get("/api/audit/export.ndjson", response_class=PlainTextResponse)
+    async def audit_export():
+        return (
+            "\n".join(
+                __import__("json").dumps(row, sort_keys=True)
+                for row in build_demo_snapshot()["audit"]
+            )
+            + "\n"
+        )
+
+    @app.get("/api/mttr")
+    async def mttr():
+        return [build_demo_snapshot()["mttr"]]
+
+    @app.post("/api/approvals/{decision_id}")
+    async def approve(decision_id: str, request: ApprovalRequest):
+        decisions = {
+            item["decision"]["decision_id"]: item["decision"]
+            for item in build_demo_snapshot()["incidents"]
+        }
+        if decision_id not in decisions:
+            raise HTTPException(status_code=404, detail=f"unknown decision: {decision_id}")
+        try:
+            approval = approvals.resolve(
+                decision_id,
+                verdict=request.verdict,
+                by=request.by,
+                ts=float(decisions[decision_id]["ts"]),
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        return asdict(approval)
 
     @app.websocket("/ws/stream")
     async def stream(websocket: WebSocket, since_seq: int | None = Query(default=None)):

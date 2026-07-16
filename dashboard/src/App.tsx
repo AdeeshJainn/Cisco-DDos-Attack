@@ -32,6 +32,7 @@ interface IncidentBundle {
     cure: { justification: string; interim_infra_action: string | null };
   };
   decision: {
+    decision_id: string;
     decision: string;
     reason: string;
     confidence: number;
@@ -57,9 +58,40 @@ interface DemoSnapshot {
     base: number[];
     event: number[];
     residual: number[];
+    mitigated_residual: number[];
     observed: number[];
   };
+  ratios: Record<string, number[]>;
+  topology: {
+    services: string[];
+    edges: Array<{ caller: string; callee: string }>;
+    origin: string;
+    attack_target: string;
+  };
+  mttr: {
+    autonomous_s: number;
+    manual_baseline_s: number;
+  };
+  audit: Array<{
+    type: string;
+    incident_id: string;
+    decision?: string;
+    reason?: string;
+    rung?: string;
+  }>;
   incidents: IncidentBundle[];
+}
+
+interface AnalyzeFinding {
+  rca: {
+    cause_class: string;
+    origin: { service: string };
+    code_fault: null | { file: string; line: number };
+  };
+  decision: {
+    decision: string;
+    reason: string;
+  };
 }
 
 function topClass(bundle: IncidentBundle) {
@@ -81,6 +113,13 @@ function Chip({ children, tone }: { children: React.ReactNode; tone: string }) {
 export default function App() {
   const [snapshot, setSnapshot] = useState<DemoSnapshot | null>(null);
   const [error, setError] = useState("");
+  const [playing, setPlaying] = useState(true);
+  const [speed, setSpeed] = useState<1 | 10 | 60>(60);
+  const [cursor, setCursor] = useState(0);
+  const [approval, setApproval] = useState("");
+  const [secretSeed, setSecretSeed] = useState(9001);
+  const [seedStatus, setSeedStatus] = useState("");
+  const [seedFindings, setSeedFindings] = useState<AnalyzeFinding[]>([]);
 
   useEffect(() => {
     fetch("/api/demo")
@@ -91,6 +130,21 @@ export default function App() {
       .then(setSnapshot)
       .catch((reason: Error) => setError(reason.message));
   }, []);
+
+  useEffect(() => {
+    if (!snapshot || !playing) return;
+    const timer = window.setInterval(() => {
+      setCursor((current) => {
+        const last = snapshot.timeline.labels.length - 1;
+        if (current >= last) {
+          setPlaying(false);
+          return last;
+        }
+        return Math.min(last, current + Math.max(1, Math.round(speed / 10)));
+      });
+    }, 350);
+    return () => window.clearInterval(timer);
+  }, [playing, snapshot, speed]);
 
   if (error) {
     return (
@@ -116,6 +170,43 @@ export default function App() {
   const fault = snapshot.incidents[1];
   const attackClass = topClass(attack);
   const faultClass = topClass(fault);
+  const fasterBy = Math.round(
+    snapshot.mttr.manual_baseline_s / snapshot.mttr.autonomous_s,
+  );
+  const simTime = snapshot.timeline.labels[cursor];
+
+  const approveFix = async () => {
+    setApproval("saving");
+    const response = await fetch(
+      `/api/approvals/${fault.decision.decision_id}`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ verdict: "approve", by: "demo-operator" }),
+      },
+    );
+    setApproval(response.ok ? "approved" : "already resolved");
+  };
+
+  const analyzeSeed = async () => {
+    setSeedStatus("analyzing telemetry…");
+    setSeedFindings([]);
+    try {
+      const response = await fetch(
+        `/api/analyze?profile=combo_night&seed=${secretSeed}`,
+      );
+      if (!response.ok) throw new Error(`analysis returned ${response.status}`);
+      const findings = (await response.json()) as AnalyzeFinding[];
+      setSeedFindings(findings);
+      setSeedStatus(
+        findings.length
+          ? `${findings.length} independent causes found without labels`
+          : "all behavior is within context",
+      );
+    } catch (reason) {
+      setSeedStatus(reason instanceof Error ? reason.message : "analysis failed");
+    }
+  };
 
   return (
     <div className="min-h-screen bg-page text-body">
@@ -137,6 +228,7 @@ export default function App() {
             <span className="h-2 w-2 animate-pulse rounded-full bg-success" />
             reasoning online
           </span>
+          <span className="tnum hidden text-xs font-bold text-ink md:inline">{simTime}</span>
           <ThemeToggle />
         </div>
       </header>
@@ -149,6 +241,63 @@ export default function App() {
                 {snapshot.profile.replaceAll("_", " ")}
               </Chip>
               <Chip tone="border-line text-muted">seed {snapshot.seed}</Chip>
+            </div>
+            <div className="mb-4 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  if (cursor >= snapshot.timeline.labels.length - 1) setCursor(0);
+                  setPlaying((value) => !value);
+                }}
+                className="rounded-full bg-accent px-4 py-2 text-xs font-bold uppercase tracking-wider text-accent-contrast hover:bg-accent-hover"
+              >
+                {playing ? "Pause" : cursor >= snapshot.timeline.labels.length - 1 ? "Replay" : "Play"}
+              </button>
+              {([1, 10, 60] as const).map((value) => (
+                <button
+                  type="button"
+                  key={value}
+                  onClick={() => setSpeed(value)}
+                  className={`rounded-full border px-3 py-2 text-xs font-bold ${
+                    speed === value
+                      ? "border-accent bg-accent-soft text-accent"
+                      : "border-line text-muted"
+                  }`}
+                >
+                  {value}×
+                </button>
+              ))}
+              <input
+                aria-label="Replay position"
+                type="range"
+                min={0}
+                max={snapshot.timeline.labels.length - 1}
+                value={cursor}
+                onChange={(event) => {
+                  setPlaying(false);
+                  setCursor(Number(event.target.value));
+                }}
+                className="ml-1 w-48 accent-[var(--accent)]"
+              />
+              <span className="tnum text-xs font-bold text-muted">{simTime}</span>
+              <span className="mx-1 hidden h-6 w-px bg-line lg:block" />
+              <label className="flex items-center gap-2 rounded-full border border-line bg-raised px-3 py-1.5 text-xs">
+                <span className="font-bold uppercase tracking-wider text-muted">Seed</span>
+                <input
+                  aria-label="Secret seed"
+                  type="number"
+                  value={secretSeed}
+                  onChange={(event) => setSecretSeed(Number(event.target.value))}
+                  className="tnum w-20 bg-transparent font-bold text-ink outline-none"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={analyzeSeed}
+                className="rounded-full border border-accent/50 px-4 py-2 text-xs font-bold uppercase tracking-wider text-accent hover:bg-accent-soft"
+              >
+                Analyze fresh seed
+              </button>
             </div>
             <h1 className="max-w-4xl text-[clamp(2.5rem,5vw,5.3rem)] leading-[0.9]">
               The attack behind the game.
@@ -175,6 +324,48 @@ export default function App() {
           </div>
         </section>
 
+        {(seedStatus || seedFindings.length > 0) && (
+          <section className="mt-5 rounded-lg border border-accent/30 bg-accent-soft p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-accent">
+                  Fresh-seed fire drill
+                </p>
+                <h2 className="mt-1">
+                  Seed {secretSeed}: {seedStatus}
+                </h2>
+              </div>
+              <Chip tone="border-accent/40 text-accent">runtime labels isolated</Chip>
+            </div>
+            {seedFindings.length > 0 && (
+              <div className="mt-4 grid gap-3 md:grid-cols-3">
+                {seedFindings.map((finding) => (
+                  <article
+                    key={`${finding.rca.cause_class}-${finding.rca.origin.service}`}
+                    className="rounded-md border border-line bg-raised p-4"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <Chip tone="border-line text-muted">{finding.rca.cause_class}</Chip>
+                      <span className="text-xs font-bold uppercase tracking-wider text-accent">
+                        {finding.decision.decision}
+                      </span>
+                    </div>
+                    <h3 className="mt-3">{finding.rca.origin.service}</h3>
+                    {finding.rca.code_fault && (
+                      <p className="mt-1 font-mono text-xs text-warning">
+                        {finding.rca.code_fault.file}:{finding.rca.code_fault.line}
+                      </p>
+                    )}
+                    <p className="mt-3 line-clamp-3 text-xs text-muted">
+                      {finding.decision.reason}
+                    </p>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
         <div className="mt-6 grid gap-5 xl:grid-cols-[1.35fr_0.65fr]">
           <section className="rounded-lg border border-line bg-raised p-5 shadow-sm">
             <div className="flex flex-wrap items-start justify-between gap-4">
@@ -190,7 +381,7 @@ export default function App() {
               </div>
             </div>
             <div className="mt-4">
-              <DecompositionChart timeline={snapshot.timeline} />
+              <DecompositionChart timeline={snapshot.timeline} cursor={cursor} />
             </div>
             <div className="mt-3 grid gap-3 border-t border-line pt-4 md:grid-cols-3">
               <div>
@@ -259,6 +450,18 @@ export default function App() {
                 <div className="mt-4 border-l-2 border-warning pl-3 text-xs text-muted">
                   Alert + code fix. No automatic patching; interim caller throttle proposed.
                 </div>
+                <button
+                  type="button"
+                  onClick={approveFix}
+                  disabled={approval === "saving" || approval === "approved"}
+                  className="mt-4 rounded-full border border-warning/50 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-warning disabled:opacity-60"
+                >
+                  {approval === "approved"
+                    ? "Operator approved"
+                    : approval === "saving"
+                      ? "Recording…"
+                      : approval || "Approve interim throttle"}
+                </button>
               </article>
             </div>
           </section>
@@ -358,6 +561,139 @@ export default function App() {
               </div>
             </section>
           )}
+        </div>
+
+        <div className="mt-5 grid gap-5 xl:grid-cols-[0.7fr_0.7fr_0.6fr]">
+          <section className="rounded-lg border border-line bg-raised p-5 shadow-sm">
+            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted">
+              Behavior ratios
+            </p>
+            <h2 className="mt-1">Volume rises. Ratios should not.</h2>
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              {Object.entries(snapshot.ratios).map(([name, values]) => {
+                const minimum = Math.min(...values);
+                const maximum = Math.max(...values);
+                const delta = maximum - minimum;
+                const deformed = delta > Math.max(Math.abs(minimum) * 0.15, 0.05);
+                return (
+                  <div key={name} className="rounded-md border border-line bg-sidebar p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-bold capitalize text-ink">{name}</span>
+                      <span
+                        className={`h-2 w-2 rounded-full ${
+                          deformed ? "bg-danger" : "bg-success"
+                        }`}
+                      />
+                    </div>
+                    <svg viewBox="0 0 120 34" className="mt-3 h-10 w-full" aria-hidden="true">
+                      <polyline
+                        fill="none"
+                        stroke={deformed ? "var(--danger)" : "var(--success)"}
+                        strokeWidth="2"
+                        points={values
+                          .map((value, index) => {
+                            const x = (index / (values.length - 1)) * 120;
+                            const y =
+                              30 -
+                              ((value - minimum) / Math.max(delta, 0.0001)) * 26;
+                            return `${x},${y}`;
+                          })
+                          .join(" ")}
+                      />
+                    </svg>
+                    <div className="mt-1 text-[10px] uppercase tracking-wider text-muted">
+                      {deformed ? "deformed" : "in band"}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+
+          <section className="rounded-lg border border-line bg-raised p-5 shadow-sm">
+            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted">
+              Service topology
+            </p>
+            <h2 className="mt-1">One world model. One origin.</h2>
+            <div className="mt-5 space-y-3">
+              {snapshot.topology.services.map((service) => {
+                const isOrigin = service === snapshot.topology.origin;
+                const isTarget = service === snapshot.topology.attack_target;
+                return (
+                  <div
+                    key={service}
+                    className={`flex items-center gap-3 rounded-md border p-3 ${
+                      isOrigin
+                        ? "border-warning/50 bg-warning/5"
+                        : isTarget
+                          ? "border-danger/50 bg-danger/5"
+                          : "border-line bg-sidebar"
+                    }`}
+                  >
+                    <span
+                      className={`grid h-8 w-8 place-items-center rounded-full text-xs font-black ${
+                        isOrigin
+                          ? "bg-warning text-page"
+                          : isTarget
+                            ? "bg-danger text-page"
+                            : "bg-page text-muted"
+                      }`}
+                    >
+                      {service.slice(0, 1).toUpperCase()}
+                    </span>
+                    <span className="text-sm font-bold text-ink">{service}</span>
+                    <span className="ml-auto text-[10px] font-bold uppercase tracking-wider text-muted">
+                      {isOrigin ? "root cause" : isTarget ? "attack target" : "healthy"}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+
+          <section className="rounded-lg border border-line bg-raised p-5 shadow-sm">
+            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted">
+              Auditable outcome
+            </p>
+            <div className="mt-3 rounded-md border border-success/30 bg-success/5 p-4">
+              <div className="tnum font-serif text-5xl text-success">{fasterBy}×</div>
+              <p className="mt-2 text-sm font-bold text-ink">faster than manual baseline</p>
+              <p className="mt-1 text-xs text-muted">
+                {snapshot.mttr.autonomous_s.toFixed(0)}s autonomous vs{" "}
+                {(snapshot.mttr.manual_baseline_s / 3600).toFixed(0)}h manual.
+              </p>
+            </div>
+            <div className="mt-4 space-y-2">
+              {snapshot.audit.map((row, index) => (
+                <div
+                  key={`${row.type}-${index}`}
+                  className="flex items-center gap-3 border-b border-line py-2 text-xs last:border-0"
+                >
+                  <span className="tnum text-muted">{String(index + 1).padStart(2, "0")}</span>
+                  <Chip
+                    tone={
+                      row.type === "action"
+                        ? "border-accent/40 text-accent"
+                        : row.type === "mttr"
+                          ? "border-success/40 text-success"
+                          : "border-line text-muted"
+                    }
+                  >
+                    {row.type}
+                  </Chip>
+                  <span className="truncate text-ink">
+                    {row.rung ?? row.decision ?? row.incident_id}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <a
+              href="/api/audit/export.ndjson"
+              className="mt-4 inline-flex text-xs font-bold uppercase tracking-wider text-accent hover:text-accent-hover"
+            >
+              Export audit trail →
+            </a>
+          </section>
         </div>
       </main>
     </div>

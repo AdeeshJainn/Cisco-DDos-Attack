@@ -13,9 +13,10 @@ from argus.contracts import (
 )
 from argus.demo import build_demo_snapshot
 from argus.policy.decide import decide
+from argus.policy.effects import apply_action_effect
 from argus.policy.guards import guard_target
 from argus.policy.ladder import first_action
-from argus.policy.rollback import rollback_for_regression
+from argus.policy.rollback import evaluate_collateral, rollback_for_regression
 from argus.verdict.rules import classify
 
 
@@ -82,11 +83,50 @@ def test_rollback_and_append_only_audit(tmp_path: Path):
     assert [row["kind"] for row in rows] == ["decision", "action", "rollback"]
 
 
+def test_action_effect_targets_only_post_action_contribution():
+    _, _, _, action = _attack()
+    effect = apply_action_effect(
+        __import__("numpy").asarray([10.0, 10.0, 10.0]),
+        action,
+        start_index=1,
+    )
+
+    assert effect.after[0] == effect.before[0]
+    assert all(effect.after[1:] < effect.before[1:])
+    assert effect.intended_effect_met
+
+
+def test_collateral_monitor_rolls_back_only_regressions():
+    _, _, _, action = _attack()
+    healthy = evaluate_collateral(
+        action,
+        protected_before={"p95_ms": 100.0},
+        protected_after={"p95_ms": 105.0},
+        ts=100.0,
+        verified_ts=160.0,
+    )
+    regressed = evaluate_collateral(
+        action,
+        protected_before={"p95_ms": 100.0},
+        protected_after={"p95_ms": 130.0},
+        ts=100.0,
+        verified_ts=160.0,
+    )
+
+    assert healthy is None
+    assert regressed is not None
+    assert regressed.verification.users_restored
+
+
 def test_demo_snapshot_contains_attack_action_and_real_code_report():
     snapshot = build_demo_snapshot()
 
     assert snapshot["mode"] == "seeded deterministic simulation"
     assert snapshot["incidents"][0]["action"]["rung"] == "rate_limit"
+    assert snapshot["incidents"][0]["effect"]["intended_effect_met"]
+    assert snapshot["mttr"]["autonomous_s"] == 106.0
+    assert snapshot["ratios"]
+    assert snapshot["topology"]["origin"] == "payment-svc"
     code = snapshot["incidents"][1]["rca"]["code_fault"]
     assert code["commit"]
     assert code["file"] == "payment_svc/retry.py"
