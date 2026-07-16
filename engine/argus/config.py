@@ -70,6 +70,19 @@ class ScenarioConfig:
     baseline_error_rate: float = 0.001
     overload_error_gain: float = 0.45
 
+    # Organic traffic ratios are stable under event volume. Small seeded jitter
+    # makes them realistic without coupling behavior to an event multiplier.
+    organic_uniq_ip_entropy: float = 7.8
+    organic_uniq_ip_entropy_jitter: float = 0.08
+    organic_syn_ack_ratio: float = 1.02
+    organic_syn_ack_ratio_jitter: float = 0.015
+    organic_auth_fail_ratio: float = 0.012
+    organic_auth_fail_ratio_jitter: float = 0.003
+    organic_ja3_novelty: float = 0.025
+    organic_ja3_novelty_jitter: float = 0.006
+    organic_geo_top1_share: float = 0.22
+    organic_geo_top1_share_jitter: float = 0.025
+
 
 @dataclass(frozen=True)
 class DetectionConfig:
