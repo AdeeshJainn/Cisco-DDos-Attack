@@ -100,6 +100,31 @@ class ScenarioConfig:
     low_slow_connection_fraction_gain: float = 0.75
     low_slow_p99_gain: float = 4.0
 
+    # Fault strength and topology propagation are duration-relative and
+    # mechanism-driven; they do not encode canonical scenario timestamps.
+    fault_ramp_fraction: float = 0.15
+    upstream_latency_gain: float = 1.8
+    upstream_error_gain: float = 0.18
+    upstream_attenuation: float = 0.55
+    retry_amplification_gain: float = 5.0
+    retry_error_gain: float = 0.45
+    pool_connection_fraction: float = 0.98
+    pool_queue_gain: float = 180.0
+    pool_latency_gain: float = 5.0
+    cache_burst_period_s: float = 90.0
+    cache_latency_gain: float = 6.0
+    cache_cpu_gain_pct: float = 35.0
+    leak_memory_gain_pct: float = 68.0
+    leak_restart_period_s: float = 180.0
+    nplus1_latency_gain: float = 4.5
+    nplus1_cpu_gain_pct: float = 42.0
+    worker_queue_gain: float = 260.0
+    worker_latency_gain: float = 4.0
+    link_brownout_error_gain: float = 0.55
+    link_brownout_latency_gain: float = 5.0
+    capacity_loss_fraction: float = 0.55
+    fault_log_count_scale: int = 40
+
 
 @dataclass(frozen=True)
 class DetectionConfig:
