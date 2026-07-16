@@ -1,0 +1,65 @@
+# topology.yaml — the world model for the storefront stack.
+#
+# Everything that needs the shape of this system reads it from here: load
+# planning, the scenario generator (per-service scale and capacity) and
+# root-cause analysis (call edges) all share this one file. Service names
+# are the canonical wire names used in metrics, traces and deploy records;
+# `dir` maps each service to its code directory in this repo.
+#
+# Capacity notes: `capacity_rps` is the fleet-wide throughput where p95
+# latency starts to knee (~80% utilization is the planning line, not the
+# ceiling). `base_rps` is the steady weekday mid-afternoon rate.
+
+services:
+  edge-gw:
+    dir: edge_gw
+    port: 8080
+    replicas: 4
+    base_rps: 1800
+    capacity_rps: 15000
+    max_conns: 8000
+  auth-svc:
+    dir: auth_svc
+    port: 8081
+    replicas: 2
+    base_rps: 220
+    capacity_rps: 2000
+    max_conns: 400
+  catalog-svc:
+    dir: catalog_svc
+    port: 8082
+    replicas: 3
+    base_rps: 900
+    capacity_rps: 7500
+    max_conns: 1200
+  payment-svc:
+    dir: payment_svc
+    port: 8083
+    replicas: 2
+    base_rps: 250
+    capacity_rps: 800
+    max_conns: 300
+  notify-svc:
+    dir: notify_svc
+    port: 8084
+    replicas: 2
+    base_rps: 240
+    capacity_rps: 600
+    max_conns: 200
+
+# Call graph. `calls_per_request` is the average number of calls the caller
+# makes to the callee per request it serves (from trace sampling), so each
+# callee's base_rps ≈ sum over incoming edges of caller base_rps × ratio.
+edges:
+  - caller: edge-gw
+    callee: auth-svc
+    calls_per_request: 0.12
+  - caller: edge-gw
+    callee: catalog-svc
+    calls_per_request: 0.50
+  - caller: edge-gw
+    callee: payment-svc
+    calls_per_request: 0.14
+  - caller: payment-svc
+    callee: notify-svc
+    calls_per_request: 0.95
