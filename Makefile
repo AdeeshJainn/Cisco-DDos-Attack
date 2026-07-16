@@ -37,7 +37,7 @@ score:
 	@echo "make score: lands in phase 4 (scoring harness)"; exit 1
 
 seeds:
-	@echo "make seeds: lands in phase 3 (bulk scenario generation)"; exit 1
+	$(UV) run --project engine python scripts/gen_scenarios.py --count $${N:-1} --start-seed $${START_SEED:-1} --profile $${PROFILE:-match_night}
 
 regen-golden:
 	@echo "make regen-golden: lands in phase 8 (golden replay suite)"; exit 1

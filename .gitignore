@@ -21,6 +21,8 @@ scenarios/*.jsonl.gz
 !scenarios/match_night.jsonl.gz
 !scenarios/cascade_night.jsonl.gz
 !scenarios/combo_night.jsonl.gz
+scenarios/*.labels.json
+scenarios/*.steplabels.parquet
 
 # demo-app git history and lockfile are materialized by make setup
 demo-app/.git/
