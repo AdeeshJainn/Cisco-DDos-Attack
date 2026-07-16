@@ -133,6 +133,19 @@ class ScenarioConfig:
 class DetectionConfig:
     """Expected bands, surge decomposition and behavioral-ratio monitors."""
 
+    # Seasonal baseline uses minute-of-day buckets matching warmup resolution.
+    seasonal_bucket_s: int = 60
+    # Robust Gaussian consistency factor converts MAD to a sigma-like width.
+    mad_scale: float = 1.4826
+    # Three robust standard deviations balance quiet-day restraint and recall.
+    band_k: float = 3.0
+    # Avoid zero-width bands on perfectly stable generated warmup.
+    minimum_band_fraction: float = 0.03
+    # EWMA smooths bucket-to-bucket estimates without hiding minute incidents.
+    expected_ewma_alpha: float = 0.25
+    # Residual score saturates when excess reaches four band half-widths.
+    residual_score_cap: float = 4.0
+
 
 @dataclass(frozen=True)
 class VerdictConfig:

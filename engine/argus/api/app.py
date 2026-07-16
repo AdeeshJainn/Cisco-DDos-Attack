@@ -12,6 +12,8 @@ from pydantic import BaseModel, model_validator
 
 from argus import CONTRACT_VERSION
 from argus.api.replay import ReplayController
+from argus.contracts import MetricName
+from argus.detection.residual import DecompStore
 from argus.scenario.profiles import PROFILE_BUILDERS
 
 
@@ -51,8 +53,12 @@ def _git_sha() -> str:
         return "unknown"
 
 
-def create_app(controller: ReplayController | None = None) -> FastAPI:
+def create_app(
+    controller: ReplayController | None = None,
+    decomp_store: DecompStore | None = None,
+) -> FastAPI:
     replay = controller or ReplayController()
+    decompositions = decomp_store or DecompStore()
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
@@ -70,6 +76,7 @@ def create_app(controller: ReplayController | None = None) -> FastAPI:
 
     app = FastAPI(title="Argus", version="0.1.0", lifespan=lifespan)
     app.state.replay = replay
+    app.state.decomp_store = decompositions
 
     @app.get("/api/health")
     async def health():
@@ -118,6 +125,27 @@ def create_app(controller: ReplayController | None = None) -> FastAPI:
             return (await replay.seek(request.sim_ts)).model_dump(mode="json")
         except (RuntimeError, ValueError) as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.get("/api/decomp")
+    async def decomp(
+        service: str,
+        signal: MetricName,
+        from_ts: float,
+        to_ts: float,
+        max_points: int = 2000,
+    ):
+        if max_points < 1:
+            raise HTTPException(status_code=422, detail="max_points must be positive")
+        return [
+            frame.model_dump(mode="json")
+            for frame in decompositions.query(
+                service=service,
+                signal=signal,
+                from_ts=from_ts,
+                to_ts=to_ts,
+                max_points=max_points,
+            )
+        ]
 
     @app.websocket("/ws/stream")
     async def stream(websocket: WebSocket, since_seq: int | None = Query(default=None)):
