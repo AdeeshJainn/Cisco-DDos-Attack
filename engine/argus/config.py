@@ -170,6 +170,14 @@ class DetectionConfig:
 class VerdictConfig:
     """Classification rule thresholds and confidence calibration."""
 
+    # A single qualified signal is useful but not decisive; corroborating
+    # symptoms raise confidence without ever claiming certainty in v0.
+    confidence_floor: float = 0.55
+    evidence_score_gain: float = 0.25
+    corroboration_gain: float = 0.05
+    max_corroborating_symptoms: int = 3
+    confidence_cap: float = 0.95
+
 
 @dataclass(frozen=True)
 class RcaConfig:
