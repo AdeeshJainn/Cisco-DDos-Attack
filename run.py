@@ -1,15 +1,18 @@
-"""Single-command demo launcher: boots the engine and serves the built
-dashboard from one process."""
+"""Single-command demo launcher serving the engine and built dashboard."""
 
-import sys
+import os
+
+import uvicorn
 
 
 def main() -> int:
-    sys.stderr.write(
-        "run.py: the demo launcher lands with the replay api and dashboard "
-        "phases — until then use `make dev`.\n"
+    uvicorn.run(
+        "argus.api.app:app",
+        host=os.getenv("HOST", "127.0.0.1"),
+        port=int(os.getenv("PORT", "8100")),
+        log_level="info",
     )
-    return 1
+    return 0
 
 
 if __name__ == "__main__":

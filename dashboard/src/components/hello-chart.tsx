@@ -2,10 +2,15 @@ import * as echarts from "echarts";
 import { useEffect, useRef } from "react";
 import { useTheme } from "../hooks/use-theme";
 
-// Placeholder proving the charting pipeline end to end; the real panels
-// replace it with contract-driven data. Colors come from the live brand
-// tokens, so the chart follows the theme.
-export function HelloChart() {
+interface Timeline {
+  labels: string[];
+  base: number[];
+  event: number[];
+  residual: number[];
+  observed: number[];
+}
+
+export function DecompositionChart({ timeline }: { timeline: Timeline }) {
   const ref = useRef<HTMLDivElement>(null);
   const theme = useTheme();
 
@@ -14,22 +19,83 @@ export function HelloChart() {
     if (!el) return;
     const tokens = getComputedStyle(el);
     const chart = echarts.init(el);
-    const points = Array.from(
-      { length: 96 },
-      (_, i) => 100 + 60 * Math.sin(i / 8) + 14 * Math.sin(i / 2.3),
-    );
     chart.setOption({
-      grid: { left: 8, right: 8, top: 8, bottom: 8 },
-      xAxis: { type: "category", show: false, data: points.map((_, i) => i) },
-      yAxis: { type: "value", show: false },
+      animationDuration: 700,
+      backgroundColor: "transparent",
+      grid: { left: 44, right: 16, top: 30, bottom: 34 },
+      tooltip: { trigger: "axis" },
+      legend: {
+        top: 0,
+        right: 0,
+        textStyle: { color: tokens.getPropertyValue("--muted").trim() },
+      },
+      xAxis: {
+        type: "category",
+        data: timeline.labels,
+        axisLine: { lineStyle: { color: tokens.getPropertyValue("--line").trim() } },
+        axisLabel: {
+          color: tokens.getPropertyValue("--muted").trim(),
+          interval: 5,
+        },
+      },
+      yAxis: {
+        type: "value",
+        name: "relative load",
+        nameTextStyle: { color: tokens.getPropertyValue("--muted").trim() },
+        axisLabel: { color: tokens.getPropertyValue("--muted").trim() },
+        splitLine: { lineStyle: { color: tokens.getPropertyValue("--line").trim() } },
+      },
       series: [
         {
+          name: "base",
           type: "line",
-          data: points,
+          stack: "expected",
+          data: timeline.base,
           smooth: true,
           showSymbol: false,
-          lineStyle: { color: tokens.getPropertyValue("--brand").trim(), width: 2 },
+          lineStyle: {
+            color: tokens.getPropertyValue("--decomp-base").trim(),
+            width: 1,
+          },
+          areaStyle: { color: tokens.getPropertyValue("--line").trim() },
+        },
+        {
+          name: "event",
+          type: "line",
+          stack: "expected",
+          data: timeline.event,
+          smooth: true,
+          showSymbol: false,
+          lineStyle: {
+            color: tokens.getPropertyValue("--decomp-event").trim(),
+            width: 2,
+          },
           areaStyle: { color: tokens.getPropertyValue("--accent-soft").trim() },
+        },
+        {
+          name: "residual",
+          type: "line",
+          stack: "expected",
+          data: timeline.residual,
+          smooth: true,
+          showSymbol: false,
+          lineStyle: {
+            color: tokens.getPropertyValue("--decomp-residual").trim(),
+            width: 2,
+          },
+          areaStyle: { opacity: 0.14 },
+        },
+        {
+          name: "observed",
+          type: "line",
+          data: timeline.observed,
+          smooth: true,
+          showSymbol: false,
+          lineStyle: {
+            color: tokens.getPropertyValue("--ink").trim(),
+            width: 2,
+            type: "dashed",
+          },
         },
       ],
     });
@@ -39,7 +105,7 @@ export function HelloChart() {
       window.removeEventListener("resize", onResize);
       chart.dispose();
     };
-  }, [theme]);
+  }, [theme, timeline]);
 
-  return <div ref={ref} className="h-40 w-full" aria-hidden="true" />;
+  return <div ref={ref} className="h-72 w-full" aria-label="Surge decomposition chart" />;
 }

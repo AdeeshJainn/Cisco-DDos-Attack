@@ -28,7 +28,8 @@ dev:
 	@echo "make dev: lands in phase 3 (replay api). Dashboard alone: cd dashboard && npm run dev"; exit 1
 
 demo:
-	@echo "make demo: lands in phase 7 (dashboard over the replay api)"; exit 1
+	cd dashboard && $(NPM) run build
+	$(UV) run --project engine python run.py
 
 replay:
 	ARGUS_PROFILE=$${PROFILE:-match_night} ARGUS_SEED=$${SEED:-424242} ARGUS_SPEED=$${SPEED:-60} \
