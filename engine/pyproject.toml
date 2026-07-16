@@ -6,7 +6,8 @@ requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.30",
-    "pydantic>=2.7",
+    # contracts.py relies on validate_by_alias / serialize_by_alias (added in 2.11)
+    "pydantic>=2.11",
     "numpy>=1.26",
     "pandas>=2.2",
     "pyyaml>=6.0",
