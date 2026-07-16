@@ -83,6 +83,23 @@ class ScenarioConfig:
     organic_geo_top1_share: float = 0.22
     organic_geo_top1_share_jitter: float = 0.025
 
+    # Attack shapes ramp and decay as a fraction of their supplied window, so
+    # the mechanism scales to secret-seed durations instead of fixed timestamps.
+    attack_ramp_fraction: float = 0.12
+    # Behavioral deformation gains encode attack mechanics, not scenario
+    # magnitudes; intensity (0..1) scales each effect.
+    volumetric_entropy_drop: float = 3.0
+    volumetric_geo_top1_gain: float = 0.55
+    syn_ack_ratio_gain: float = 6.0
+    syn_connection_fraction_gain: float = 0.85
+    syn_latency_gain: float = 2.5
+    app_auth_fail_gain: float = 0.70
+    app_ja3_novelty_gain: float = 0.65
+    app_entropy_drop: float = 2.2
+    low_slow_ja3_novelty_gain: float = 0.45
+    low_slow_connection_fraction_gain: float = 0.75
+    low_slow_p99_gain: float = 4.0
+
 
 @dataclass(frozen=True)
 class DetectionConfig:
