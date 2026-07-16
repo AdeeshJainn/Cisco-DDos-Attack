@@ -183,6 +183,20 @@ class VerdictConfig:
 class RcaConfig:
     """Incident clustering, causal-collapse scoring and code localization."""
 
+    # Symptoms close in time and within two dependency hops describe one storm.
+    incident_gap_s: float = 120.0
+    topology_hops: int = 2
+    # Resolve only after all observed symptoms stay quiet for one minute.
+    resolve_dwell_s: float = 60.0
+    # Interpretable causal-collapse weights from the documented v0 formula.
+    onset_weight: float = 0.30
+    propagation_weight: float = 0.25
+    deploy_weight: float = 0.30
+    signature_weight: float = 0.15
+    # Deploy evidence decays over ten minutes; localization searches one day.
+    deploy_decay_s: float = 600.0
+    deploy_lookback_s: float = 86_400.0
+
 
 @dataclass(frozen=True)
 class PolicyConfig:
